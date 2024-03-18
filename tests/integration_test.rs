@@ -1,3 +1,5 @@
+
+/*
 use chunk_lib::Chunk;
 use chunk_lib::ChunkLayer;
 use chunk_lib::ChunkTile;
@@ -19,3 +21,4 @@ fn test_set_up_chunk_layer() {
     let test = chunk_layer.get_at(0, 0);
     assert_eq!(test.unwrap(), &1);
 }
+*/

@@ -292,7 +292,6 @@ mod chunk_layer_tests {
 
         // On a chunk boundary
         let indices = layer.get_chunk_indices_for_tile_coords(10, 10);
-        let main_chunk_2 = indices[0];
         // assert_eq!(main_chunk, main_chunk_2);
         assert_eq!(indices.len(), 4); // Expect multiple indices due to boundary condition
         println!("{indices:?}");
