@@ -11,7 +11,7 @@ pub trait TileMapDataSource<T> {
 
     // Returns the entire data of the tilemap as a Vec<T>.
     // This might involve flattening the tilemap structure into a Vec.
-    fn get_data(&self) -> Vec<&T>;
+    fn take_data(&mut self) -> Vec<T>;
 
     /*
     fn iter(&self) -> Box<dyn Iterator<Item = &T> + '_>;
