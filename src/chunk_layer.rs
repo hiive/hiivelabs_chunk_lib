@@ -2,6 +2,7 @@ use crate::bounds::Bounds;
 use crate::chunk::Chunk;
 use hecs::World;
 use smallvec::SmallVec;
+use crate::TileMapDataSource;
 
 pub struct ChunkLayer<'l, T> {
     layer_id: usize,
@@ -13,6 +14,7 @@ pub struct ChunkLayer<'l, T> {
     chunk_width: usize,
     chunk_height: usize,
     chunks: Vec<Option<Chunk<'l, T>>>,
+    parent_layer: Option<&'l ChunkLayer<'l, T>>,
 }
 
 impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
@@ -23,6 +25,7 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
         chunk_padding_in_tiles: usize,
         chunk_width: usize,
         chunk_height: usize,
+        parent_layer: Option<&'l ChunkLayer<'l, T>>
     ) -> Self {
         let width_in_tiles = width_in_chunks * chunk_width;
         let height_in_tiles = height_in_chunks * chunk_height;
@@ -50,6 +53,7 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
             chunk_width,
             chunk_height,
             chunks,
+            parent_layer
             // chunk_store
         }
     }
@@ -229,26 +233,26 @@ mod chunk_layer_tests {
 
     #[test]
     fn test_is_chunk_border_coord() {
-        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10);
+        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10, None);
         assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
         assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
     }
 
     #[test]
     fn test_tile_coords_to_chunk_coords() {
-        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10);
+        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10, None);
         assert_eq!(layer.tile_coords_to_chunk_coords(15, 25), (1, 2));
     }
 
     #[test]
     fn test_chunk_coords_to_tile_coords() {
-        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10);
+        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10, None);
         assert_eq!(layer.chunk_coords_to_tile_coords(1, 2), (10, 20));
     }
 
     #[test]
     fn test_get_chunk_indices_for_tile_coords() {
-        let layer = ChunkLayer::<i32>::new(1, 2, 2, 1, 10, 10);
+        let layer = ChunkLayer::<i32>::new(1, 2, 2, 1, 10, 10, None);
         // Assuming Bounds::get_index_for_coords and Bounds::is_in_bounds are correctly implemented
         // and chunks are properly initialized in the layer.
         // This example assumes chunks are laid out linearly and checks for boundary conditions.

@@ -23,7 +23,7 @@ impl<'m, T: std::fmt::Debug> ChunkManager<'m, T> {
         let mut layers = Vec::with_capacity(layer_count);
         // initialize the top layer
         let top_layer =
-            ChunkLayer::<T>::new(0, 1, 1, chunk_padding_in_tiles, chunk_width, chunk_height);
+            ChunkLayer::<T>::new(0, 1, 1, chunk_padding_in_tiles, width, height, None);
         layers.push(top_layer);
 
         let width_in_chunks = width / chunk_width;
@@ -31,6 +31,7 @@ impl<'m, T: std::fmt::Debug> ChunkManager<'m, T> {
 
         for layer_id in 1..layer_count {
             let f = 2usize.pow(layer_id as u32);
+            let prev_layer = layers.last();
             let layer = ChunkLayer::<T>::new(
                 layer_id,
                 f * width_in_chunks,
@@ -38,7 +39,9 @@ impl<'m, T: std::fmt::Debug> ChunkManager<'m, T> {
                 chunk_padding_in_tiles,
                 chunk_width,
                 chunk_height,
+                prev_layer
             );
+
         }
 
         Self {
@@ -67,6 +70,19 @@ impl<'m, T: std::fmt::Debug> ChunkManager<'m, T> {
             }
         }
     }
+
+    pub fn get_at(&self, x: isize, y: isize, z:usize) -> Option<&'m T> {
+        let some_layer = self.layers.get(z);
+
+        match some_layer {
+            Some(layer) => {
+                let x = if z == 0 { x } else { x.pow(z as u32) };
+                let y= if z == 0 { y } else { y.pow(z as u32) };
+                layer.get_at(x, y)
+            },
+            _ => None
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -74,4 +90,99 @@ impl<'m, T: std::fmt::Debug> ChunkManager<'m, T> {
 // tests
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-mod chunk_manager_tests {}
+mod chunk_manager_tests {
+
+
+    struct TestMap {
+        pub(crate) data: Vec<u8>,
+        width: usize,
+        height:usize,
+    }
+
+    impl TileMapDataSource<u8> for TestMap {
+        fn width(&self) -> usize {
+            self.width
+        }
+
+        fn height(&self) -> usize {
+            self.height
+        }
+
+        fn get_at(&self, x: usize, y: usize) -> Option<&u8> {
+            let ix = y * self.width + x;
+            self.data.get(ix)
+        }
+
+        fn get_data(&self) -> Vec<&u8> {
+            self.data.iter().collect()
+        }
+    }
+
+    impl TestMap {
+
+        pub fn new(width: usize, height: usize, is_random:bool) -> Self {
+
+            let data = if is_random {
+                Self::generate_random_vector(width * height)
+            }
+            else{
+                (0..width*height)
+                    .map(|i| 0_u8.wrapping_add(i as u8))
+                    .collect()
+            };
+            Self{
+                width,
+                height,
+                data
+            }
+        }
+        fn generate_random_vector(length: usize) -> Vec<u8> {
+            let seed = [42; 32];
+            let mut rng = StdRng::from_seed(seed);
+            (0..length).map( | _| rng.gen()).collect()
+        }
+    }
+
+
+    #[cfg(test)]
+    use std::fmt::Debug;
+    use super::ChunkManager;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use crate::TileMapDataSource;
+
+
+    fn test_init_with_params(width:usize, height:usize, layer_count:usize,
+                             chunk_width:usize, chunk_height:usize,
+                             chunk_padding_in_tiles:usize,
+                             use_random_map:bool) {
+
+        let test_map = TestMap::new(width, height, use_random_map);
+
+        let mut cm = ChunkManager::<u8>::new(width, height, layer_count,
+                                             chunk_width, chunk_height, chunk_padding_in_tiles);
+
+        assert_eq!(cm.width, width);
+        assert_eq!(cm.height, height);
+
+        cm.init_top_layer(&test_map);
+
+        for y in 0..height {
+            for x in 0..width {
+                let cm_val = cm.get_at(x as isize, y as isize, 0);
+                let tm_val= test_map.get_at(x, y);
+                // println!("{cm_val:?} :: {tm_val:?}");
+                assert_eq!(cm_val, tm_val);
+            }
+        }
+    }
+
+    #[test]
+    fn test_init()
+    {
+
+        test_init_with_params(64, 32, 4,
+                              32, 16, 1,
+                              true);
+    }
+}

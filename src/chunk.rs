@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 pub struct Chunk<'c, T> {
     pub(crate) bounds: Bounds,
-    chunk_width: usize,
-    chunk_height: usize,
+    pub(crate) chunk_width: usize,
+    pub(crate) chunk_height: usize,
     pub(crate) tiles: Vec<Option<ChunkTile<'c, T>>>,
 }
 
@@ -43,6 +43,13 @@ impl<'c, T: Debug> Chunk<'c, T> {
             Some(chunk_tile) => Some(&chunk_tile.value), // Return a reference to the value
             _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
         }
+    }
+
+    pub fn is_complete(&self) -> bool {
+
+        // let none_count = self.tiles.iter().filter(|&x| x.is_none()).count();
+        let any_nones = self.tiles.iter().any(Option::is_none);
+        !any_nones
     }
 
     pub fn set_at(&mut self, tx: isize, ty: isize, value: &'c T) {
@@ -110,7 +117,36 @@ mod chunk_tests {
     }
 
     #[test]
-    fn it_works() {
+    fn is_not_complete() {
+        let chunk : Chunk<i32> = Chunk::new(0, 0, 10, 10, 1);
+        assert!(!chunk.is_complete())
+    }
+
+    #[test]
+    fn is_complete() {
+        let mut chunk : Chunk<i32> = Chunk::new(0, 0, 10, 10, 1);
+
+        let x_min = -(chunk.bounds.padding as isize);
+        let x_max = (chunk.bounds.width + chunk.bounds.padding) as isize;
+        let y_min = -(chunk.bounds.padding as isize);
+        let y_max = (chunk.bounds.height + chunk.bounds.padding) as isize;
+
+        let values_to_use: Vec<i32> = (0_i32..(chunk.chunk_width * chunk.chunk_height) as i32).collect();
+        let mut ix = 0;
+        for y in y_min..y_max {
+            for x in x_min..x_max {
+                println!("({x}, {y})");
+                chunk.set_at(x, y, &values_to_use[ix]);
+                ix += 1;
+            }
+        }
+
+        assert!(chunk.is_complete())
+    }
+
+
+    #[test]
+    fn set_get_set_get_test() {
         let mut chunk: Chunk<u32> = Chunk::new(10, 10, 20, 10, 1);
 
         // chunk.init_chunk_tile(9, 9, 99);

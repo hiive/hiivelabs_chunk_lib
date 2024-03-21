@@ -14,7 +14,7 @@ impl Bounds {
         let (x, y) = (x + padding - self.x, y + padding - self.y);
         if self.assert_on_out_of_bounds {
             assert!(
-                x >= -padding && x < width + padding && y >= -padding && y < height + padding,
+                (x >= -padding) && (x <= width + padding) && (y >= -padding) && (y <= height + padding),
                 "Chunk coordinates are out of bounds"
             );
         }

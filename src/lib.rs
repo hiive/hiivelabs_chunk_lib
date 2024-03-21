@@ -1,7 +1,6 @@
 mod bounds;
 mod chunk;
 mod chunk_layer;
-// mod chunk_lib;
 mod chunk_manager;
 mod chunk_tile;
 mod tilemap_datasource;
