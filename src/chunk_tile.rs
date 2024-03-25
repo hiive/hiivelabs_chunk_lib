@@ -1,21 +1,21 @@
 // #[derive(Debug)]
 
-pub struct ChunkTile<'t, T> {
+pub struct ChunkTile {
     #[cfg(debug_assertions)]
     pub x: isize,
     #[cfg(debug_assertions)]
     pub y: isize,
-    pub value: &'t T,
+    pub value: usize,
 }
 
-impl<'t, T> ChunkTile<'t, T> {
+impl ChunkTile {
     #[cfg(debug_assertions)]
-    pub(crate) fn new(x: isize, y: isize, value: &'t T) -> Self {
+    pub(crate) fn new(x: isize, y: isize, value: usize) -> Self {
         Self { x, y, value }
     }
 
     #[cfg(not(debug_assertions))]
-    pub(crate) fn new(value: &T) -> Self {
+    pub(crate) fn new(value: usize) -> Self {
         Self { value }
     }
 }

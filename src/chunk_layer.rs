@@ -1,10 +1,13 @@
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
-use hecs::World;
+// use hecs::World;
+use crate::ChunkManager;
 use smallvec::SmallVec;
-use crate::TileMapDataSource;
+use std::option::Option;
+use std::sync::Arc;
+use crate::chunk_tile::ChunkTile;
 
-pub struct ChunkLayer<'l, T> {
+pub struct ChunkLayer<T> {
     layer_id: usize,
     bounds: Bounds, // this is in chunks, not tile-coords
 
@@ -13,19 +16,21 @@ pub struct ChunkLayer<'l, T> {
     chunk_padding_in_tiles: usize,
     chunk_width: usize,
     chunk_height: usize,
-    chunks: Vec<Option<Chunk<'l, T>>>,
-    parent_layer: Option<&'l ChunkLayer<'l, T>>,
+    chunks: Vec<Option<Chunk>>,
+    // manager: Option<&'m Arc<&'m ChunkManager<'m, T>>>,
+    owned_values: Vec<T>,
 }
 
-impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
+
+impl<T: std::fmt::Debug> ChunkLayer<T> {
     pub fn new(
+        // manager: &'m ChunkManager<'m, T>,
         layer_id: usize,
         width_in_chunks: usize,
         height_in_chunks: usize,
         chunk_padding_in_tiles: usize,
         chunk_width: usize,
         chunk_height: usize,
-        parent_layer: Option<&'l ChunkLayer<'l, T>>
     ) -> Self {
         let width_in_tiles = width_in_chunks * chunk_width;
         let height_in_tiles = height_in_chunks * chunk_height;
@@ -36,7 +41,7 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
             vec
         };
 
-        let chunk_store = World::new();
+        // let chunk_store = World::new();
         Self {
             layer_id,
             bounds: Bounds {
@@ -53,10 +58,61 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
             chunk_width,
             chunk_height,
             chunks,
-            parent_layer
-            // chunk_store
+            // manager:None,
+            owned_values: Vec::with_capacity(width_in_tiles * height_in_tiles), // chunk_store
         }
     }
+
+    pub(crate) fn populate_chunk_at(&mut self,
+                                    prev_layer: &ChunkLayer<T>,
+                                    current_layer_tx: isize, current_layer_ty: isize) {
+
+        // get the extent of the previous layer chunk
+        let prev_chunk_indices = prev_layer
+            .get_chunk_indices_for_tile_coords(current_layer_tx / 2, current_layer_ty /2);
+
+        for c_ix in prev_chunk_indices {
+            let prev_chunk = prev_layer.chunks[c_ix].as_ref().unwrap();
+
+            let source_x = prev_chunk.bounds.x;
+            let source_y = prev_chunk.bounds.y;
+            let source_w = prev_chunk.bounds.width as isize + source_x;
+            let source_h = prev_chunk.bounds.height as isize + source_y;
+            let owned_tiles = &mut self.owned_values;
+            for sy in source_y..source_h {
+                for sx in source_x..source_w {
+                    let o_v = prev_chunk.get_at(sx, sy);
+                    match(o_v)
+                    {
+                        None => {}
+                        Some(v) => {
+                            let source_tile = prev_chunk.tiles[v].as_ref().unwrap();
+                            let source_tile_value = &prev_layer.owned_values[source_tile.value];
+                            for dy in 0_isize..2 {
+                                for dx in 0_isize..2 {
+
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+
+
+        let chunk_indices = self.get_chunk_indices_for_tile_coords(
+            current_layer_tx,
+            current_layer_ty
+        );
+
+    }
+
+    /*
+    pub(crate) fn set_manager(&mut self, manager: &'m Arc<&ChunkManager<T>>) {
+        self.manager = Option::from(manager);
+    }
+     */
 
     pub(crate) fn is_chunk_border_coord(&self, tx: isize, ty: isize) -> (bool, bool) {
         (
@@ -163,14 +219,66 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
         };
     }
 
-    pub fn set_at(&mut self, tx: isize, ty: isize, value: &'l T) {
+    pub(crate) fn set_many_at(&mut self, values: &mut Vec<(isize, isize, T)>) {
+        let mut extracted_values: Vec<(SmallVec<[usize; 4]>, isize, isize, T)> = values
+            .drain(..)
+            .map(|xyv| {
+                let (tx, ty, v) = xyv;
+                let ix = self.get_chunk_indices_for_tile_coords(tx, ty);
+                (ix, tx, ty, v)
+            })
+            .collect();
+
+        // cache the owned values
+        let mut owned_values = Vec::<T>::with_capacity(extracted_values.len());
+
+        for (chunk_ixs, tx, ty, value) in extracted_values.drain(..) {
+            // get index of added value
+            let v_ix = self.owned_values.len() + owned_values.len();
+            // save value
+            owned_values.push(value);
+
+            // set values
+            for chunk_ix in chunk_ixs {
+                match self.chunks[chunk_ix] {
+                    Some(ref mut chunk) => {
+                        chunk.set_at(tx, ty, v_ix);
+                    }
+                    None => {
+                        // need to create this chunk
+                        let (cx, cy) = self.tile_coords_to_chunk_coords(tx, ty);
+                        let (c_tx, c_ty) = self.chunk_coords_to_tile_coords(cx, cy);
+                        let mut new_chunk = Chunk::new(
+                            c_tx,
+                            c_ty,
+                            self.chunk_width,
+                            self.chunk_height,
+                            self.chunk_padding_in_tiles,
+                        );
+                        new_chunk.set_at(tx, ty, v_ix);
+                        self.chunks[chunk_ix] = Some(new_chunk);
+                    }
+                }
+            }
+        }
+
+        // append the cached own values to the main cache
+        let ov = &mut self.owned_values;
+        owned_values.append(ov);
+    }
+
+    pub fn set_at(&mut self, tx: isize, ty: isize, value: T) {
         // /*
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
 
+        // save value
+        self.owned_values.push(value);
+
+        // let value_ref = self.owned_values.last().unwrap();
         for chunk_ix in chunk_ixs {
             match self.chunks[chunk_ix] {
                 Some(ref mut chunk) => {
-                    chunk.set_at(tx, ty, value);
+                    chunk.set_at(tx, ty, self.owned_values.len());
                 }
                 None => {
                     // need to create this chunk
@@ -183,14 +291,14 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
                         self.chunk_height,
                         self.chunk_padding_in_tiles,
                     );
-                    new_chunk.set_at(tx, ty, value);
+                    new_chunk.set_at(tx, ty, self.owned_values.len());
                     self.chunks[chunk_ix] = Some(new_chunk);
                 }
             }
         }
     }
 
-    pub fn get_at(&self, tx: isize, ty: isize) -> Option<&'l T> {
+    pub fn get_at(&self, tx: isize, ty: isize) -> Option<&T> {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         if chunk_ixs.len() == 0 {
             return None;
@@ -200,7 +308,13 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
         let chunk = self.chunks[chunk_ix].as_ref();
 
         match chunk {
-            Some(chunk) => chunk.get_at(tx, ty), // Return a reference to the value
+            Some(chunk) => {
+                let chunk_ix = chunk.get_at(tx, ty);
+                match chunk_ix {
+                    Some(ix) => self.owned_values.get(ix),
+                    None => None,
+                }
+            }
             _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
         }
     }
@@ -227,90 +341,4 @@ impl<'l, T: std::fmt::Debug> ChunkLayer<'l, T> {
 // tests
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-mod chunk_layer_tests {
-    #[cfg(test)]
-    use super::ChunkLayer;
-
-    #[test]
-    fn test_is_chunk_border_coord() {
-        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10, None);
-        assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
-        assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
-    }
-
-    #[test]
-    fn test_tile_coords_to_chunk_coords() {
-        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10, None);
-        assert_eq!(layer.tile_coords_to_chunk_coords(15, 25), (1, 2));
-    }
-
-    #[test]
-    fn test_chunk_coords_to_tile_coords() {
-        let layer = ChunkLayer::<i32>::new(1, 10, 10, 1, 10, 10, None);
-        assert_eq!(layer.chunk_coords_to_tile_coords(1, 2), (10, 20));
-    }
-
-    #[test]
-    fn test_get_chunk_indices_for_tile_coords() {
-        let layer = ChunkLayer::<i32>::new(1, 2, 2, 1, 10, 10, None);
-        // Assuming Bounds::get_index_for_coords and Bounds::is_in_bounds are correctly implemented
-        // and chunks are properly initialized in the layer.
-        // This example assumes chunks are laid out linearly and checks for boundary conditions.
-        // Adjust the logic based on how your chunks are indexed and stored.
-
-        // at the top-left boundary
-        let indices = layer.get_chunk_indices_for_tile_coords(0, 0);
-        assert_eq!(indices.len(), 1);
-        assert!(indices.contains(&0));
-
-        // at the bottom right boundary
-        let indices = layer.get_chunk_indices_for_tile_coords(20, 20);
-        assert_eq!(indices.len(), 1);
-        assert!(indices.contains(&3));
-
-        // at the top right boundary
-        let indices = layer.get_chunk_indices_for_tile_coords(20, 0);
-        assert_eq!(indices.len(), 1);
-        println!("{indices:?}");
-        assert!(indices.contains(&1));
-
-        // at the bottom left boundary
-        let indices = layer.get_chunk_indices_for_tile_coords(0, 20);
-        assert_eq!(indices.len(), 1);
-        println!("{indices:?}");
-        assert!(indices.contains(&2));
-
-        // out of bounds (-ve)
-        let indices = layer.get_chunk_indices_for_tile_coords(-5, -5);
-        assert_eq!(indices.len(), 0);
-
-        // out of bounds (+ve)
-        let indices = layer.get_chunk_indices_for_tile_coords(25, 25);
-        assert_eq!(indices.len(), 0);
-
-        // Directly within a chunk
-        let indices = layer.get_chunk_indices_for_tile_coords(11, 11);
-        assert_eq!(indices.len(), 1);
-        println!("{indices:?}");
-        assert!(indices.contains(&3));
-
-        // On a chunk boundary
-        let indices = layer.get_chunk_indices_for_tile_coords(10, 10);
-        // assert_eq!(main_chunk, main_chunk_2);
-        assert_eq!(indices.len(), 4); // Expect multiple indices due to boundary condition
-        println!("{indices:?}");
-        assert!(indices.contains(&0));
-        assert!(indices.contains(&1));
-        assert!(indices.contains(&2));
-        assert!(indices.contains(&3));
-
-        // on a left edge
-        let indices = layer.get_chunk_indices_for_tile_coords(10, 0);
-        assert_eq!(indices.len(), 2);
-        println!("{indices:?}");
-        assert!(indices.contains(&0));
-        assert!(indices.contains(&1));
-    }
-
-    // Add more tests as needed for other methods and edge cases.
-}
+mod chunk_layer_tests;

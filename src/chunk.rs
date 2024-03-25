@@ -1,15 +1,14 @@
 use crate::bounds::Bounds;
 use crate::chunk_tile::ChunkTile;
-use std::fmt::Debug;
 
-pub struct Chunk<'c, T> {
+pub struct Chunk {
     pub(crate) bounds: Bounds,
     pub(crate) chunk_width: usize,
     pub(crate) chunk_height: usize,
-    pub(crate) tiles: Vec<Option<ChunkTile<'c, T>>>,
+    pub(crate) tiles: Vec<Option<ChunkTile>>,
 }
 
-impl<'c, T: Debug> Chunk<'c, T> {
+impl Chunk {
     pub fn new(x: isize, y: isize, width: usize, height: usize, padding: usize) -> Self {
         let chunk_width = width + 2 * padding;
         let chunk_height = height + 2 * padding;
@@ -35,24 +34,23 @@ impl<'c, T: Debug> Chunk<'c, T> {
         }
     }
 
-    pub fn get_at(&self, tx: isize, ty: isize) -> Option<&'c T> {
+    pub fn get_at(&self, tx: isize, ty: isize) -> Option<usize> {
         let (ix, _, _) = self.bounds.get_index_for_coords(tx, ty);
         let tile = self.tiles[ix as usize].as_ref();
 
         match tile {
-            Some(chunk_tile) => Some(&chunk_tile.value), // Return a reference to the value
+            Some(chunk_tile) => Some(chunk_tile.value), // Return a reference to the value
             _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
         }
     }
 
     pub fn is_complete(&self) -> bool {
-
         // let none_count = self.tiles.iter().filter(|&x| x.is_none()).count();
         let any_nones = self.tiles.iter().any(Option::is_none);
         !any_nones
     }
 
-    pub fn set_at(&mut self, tx: isize, ty: isize, value: &'c T) {
+    pub fn set_at(&mut self, tx: isize, ty: isize, value: usize) {
         let (ix, tx, ty) = self.bounds.get_index_for_coords(tx, ty);
         let ix = ix as usize;
         match self.tiles[ix] {
@@ -73,96 +71,4 @@ impl<'c, T: Debug> Chunk<'c, T> {
 // tests
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-mod chunk_tests {
-    #[cfg(test)]
-    use crate::chunk::Chunk;
-
-    #[test]
-    fn chunk_creation() {
-        let chunk = Chunk::<i32>::new(0, 0, 10, 10, 1);
-        assert_eq!(chunk.bounds.width, 10);
-        assert_eq!(chunk.bounds.height, 10);
-        assert_eq!(chunk.bounds.padding, 1);
-        // Ensure the vector is correctly sized with padding
-        assert_eq!(chunk.tiles.len(), 144); // (10 + 2*1) * (10 + 2*1)
-    }
-
-    #[test]
-    fn get_at_for_empty_tile() {
-        let chunk = Chunk::<i32>::new(0, 0, 10, 10, 1);
-        assert!(chunk.get_at(5, 5).is_none());
-    }
-
-    #[test]
-    fn set_at_for_occupied_tile() {
-        let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-        chunk.set_at(5, 5, &42); // Assuming ChunkTile takes an i32 for this example
-        assert_eq!(*chunk.get_at(5, 5).unwrap(), 42);
-        chunk.set_at(5, 5, &43); // Assuming ChunkTile takes an i32 for this example
-        assert_eq!(*chunk.get_at(5, 5).unwrap(), 43);
-    }
-
-    #[test]
-    fn set_and_get_tile() {
-        let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-        chunk.set_at(5, 5, &42); // Assuming ChunkTile takes an i32 for this example
-        assert_eq!(*chunk.get_at(5, 5).unwrap(), 42);
-    }
-
-    #[test]
-    #[should_panic(expected = "Chunk coordinates are out of bounds")]
-    fn set_at_out_of_bounds() {
-        let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-        chunk.set_at(50, 50, &42); // This should panic
-    }
-
-    #[test]
-    fn is_not_complete() {
-        let chunk : Chunk<i32> = Chunk::new(0, 0, 10, 10, 1);
-        assert!(!chunk.is_complete())
-    }
-
-    #[test]
-    fn is_complete() {
-        let mut chunk : Chunk<i32> = Chunk::new(0, 0, 10, 10, 1);
-
-        let x_min = -(chunk.bounds.padding as isize);
-        let x_max = (chunk.bounds.width + chunk.bounds.padding) as isize;
-        let y_min = -(chunk.bounds.padding as isize);
-        let y_max = (chunk.bounds.height + chunk.bounds.padding) as isize;
-
-        let values_to_use: Vec<i32> = (0_i32..(chunk.chunk_width * chunk.chunk_height) as i32).collect();
-        let mut ix = 0;
-        for y in y_min..y_max {
-            for x in x_min..x_max {
-                println!("({x}, {y})");
-                chunk.set_at(x, y, &values_to_use[ix]);
-                ix += 1;
-            }
-        }
-
-        assert!(chunk.is_complete())
-    }
-
-
-    #[test]
-    fn set_get_set_get_test() {
-        let mut chunk: Chunk<u32> = Chunk::new(10, 10, 20, 10, 1);
-
-        // chunk.init_chunk_tile(9, 9, 99);
-        chunk.set_at(9, 9, &101);
-
-        {
-            let test = chunk.get_at(9, 9);
-            // let tv = test.unwrap_or(&u32::MAX);
-
-            println!("{test:?}");
-        }
-
-        chunk.set_at(9, 9, &102);
-        let test = chunk.get_at(9, 9);
-
-        println!("{test:?}");
-        //let tv = test.unwrap_or(&u32::MAX);
-    }
-}
+mod chunk_tests;

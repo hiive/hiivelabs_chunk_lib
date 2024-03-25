@@ -5,9 +5,9 @@ pub trait TileMapDataSource<T> {
     // Returns the height of the tilemap.
     fn height(&self) -> usize;
 
-    // Gets the value at the specified coordinates.
-    // Returns an Option<T> to handle out-of-bounds access gracefully.
-    fn get_at(&self, x: usize, y: usize) -> Option<&T>;
+    // Gets the index at the specified coordinates.
+    // Returns an Option<usize> to handle out-of-bounds access gracefully.
+    fn get_index_of(&self, x: usize, y: usize) -> Option<usize>;
 
     // Returns the entire data of the tilemap as a Vec<T>.
     // This might involve flattening the tilemap structure into a Vec.
