@@ -1,11 +1,13 @@
 // #[derive(Debug)]
 
+use crate::chunk_layer::TIndex;
+
 pub struct ChunkTile {
     #[cfg(debug_assertions)]
     pub x: isize,
     #[cfg(debug_assertions)]
     pub y: isize,
-    pub value: usize,
+    pub value: TIndex,
 }
 
 impl ChunkTile {

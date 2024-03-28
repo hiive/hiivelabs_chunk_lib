@@ -1,4 +1,5 @@
 use crate::bounds::Bounds;
+use crate::chunk_layer::TIndex;
 use crate::chunk_tile::ChunkTile;
 
 pub struct Chunk {
@@ -34,7 +35,7 @@ impl Chunk {
         }
     }
 
-    pub fn get_at(&self, tx: isize, ty: isize) -> Option<usize> {
+    pub fn get_at(&self, tx: isize, ty: isize) -> Option<TIndex> {
         let (ix, _, _) = self.bounds.get_index_for_coords(tx, ty);
         let tile = self.tiles[ix as usize].as_ref();
 
@@ -50,8 +51,10 @@ impl Chunk {
         !any_nones
     }
 
-    pub fn set_at(&mut self, tx: isize, ty: isize, value: usize) {
+    pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) {
         let (ix, tx, ty) = self.bounds.get_index_for_coords(tx, ty);
+        // #[cfg(debug_assertions)]
+        // println!("Chunk::set_at: get_index_for_coords: ({tx}, {ty}) -> ({ix})");
         let ix = ix as usize;
         match self.tiles[ix] {
             Some(ref mut tile) => {
