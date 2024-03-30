@@ -1,24 +1,3 @@
-pub trait TileMapDataSource<T> {
-    // Returns the width of the tilemap.
-    fn width(&self) -> usize;
+mod tilemap_datasource_impl;
 
-    // Returns the height of the tilemap.
-    fn height(&self) -> usize;
-
-    // Gets the index at the specified coordinates.
-    // Returns an Option<usize> to handle out-of-bounds access gracefully.
-    fn get_index_of(&self, x: usize, y: usize) -> Option<usize>;
-
-    // Returns the entire data of the tilemap as a Vec<T>.
-    // This might involve flattening the tilemap structure into a Vec.
-    fn take_data(&mut self) -> Vec<T>;
-
-    /*
-    fn iter(&self) -> Box<dyn Iterator<Item = &T> + '_>;
-
-    // implement with:
-    fn iter(&self) -> Box<dyn Iterator<Item = &T> + '_> {
-        Box::new(self.data.iter())
-    }
-    */
-}
+pub use tilemap_datasource_impl::TileMapDataSource;

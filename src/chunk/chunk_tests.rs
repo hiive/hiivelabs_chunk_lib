@@ -1,12 +1,11 @@
-#[cfg(test)]
-use std::time::Instant;
-use miniz_oxide::inflate::decompress_to_vec;
+use crate::bounds::Bounds;
+use crate::chunk::Chunk;
 use miniz_oxide::deflate::compress_to_vec;
+use miniz_oxide::inflate::decompress_to_vec;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
-use crate::bounds::Bounds;
-use crate::chunk_tile::ChunkTile;
-use crate::chunk::Chunk;
+use std::time::Instant;
+use crate::chunk_layer::TIndex;
 
 #[test]
 fn chunk_creation() {
@@ -60,7 +59,7 @@ fn generate_random_vector(length: usize) -> Vec<usize> {
     (0..length).map(|_| rng.gen()).collect()
 }
 
-fn build_complete_chunk(width:usize, height:usize, padding:usize, is_random:bool) -> Chunk {
+fn build_complete_chunk(width: usize, height: usize, padding: usize, is_random: bool) -> Chunk {
     let mut chunk = Chunk::new(0, 0, width, height, padding);
 
     let x_min = -(chunk.bounds.padding as isize);
@@ -71,9 +70,9 @@ fn build_complete_chunk(width:usize, height:usize, padding:usize, is_random:bool
     let values_to_use: Vec<usize> = {
         if is_random {
             generate_random_vector(size)
+        } else {
+            (0_usize..(chunk.chunk_width * chunk.chunk_height)).collect()
         }
-        else { (0_usize..(chunk.chunk_width * chunk.chunk_height)).collect() }
-
     };
     let mut ix = 0;
     for y in y_min..y_max {
@@ -87,25 +86,25 @@ fn build_complete_chunk(width:usize, height:usize, padding:usize, is_random:bool
 }
 
 #[test]
-fn encode_decode_test()
-{
+fn encode_decode_test() {
     let chunk = build_complete_chunk(64, 32, 1, true);
-    let chunk_mem_size = std::mem::size_of::<Bounds>() + 2 * std::mem::size_of::<usize>()
-        + chunk.tiles.len() * std::mem::size_of::<ChunkTile>();
-    print!("chunk length: {chunk_mem_size}\n");
+    let chunk_mem_size = std::mem::size_of::<Bounds>()
+        + 2 * std::mem::size_of::<usize>()
+        + chunk.tiles.len() * std::mem::size_of::<TIndex>();
+    println!("chunk length: {chunk_mem_size}");
 
     let start = Instant::now(); // Start timing
-    // let first_start = start;
-    // serialize
+                                // let first_start = start;
+                                // serialize
     let encoded: Vec<u8> = bitcode::encode(&chunk);
     let duration = start.elapsed(); // End timing
-    print!("encoded length: {}, time: {duration:?}\n", encoded.len());
+    println!("encoded length: {}, time: {duration:?}", encoded.len());
 
     // deserialize
     let start = Instant::now(); // Start timing
     let decoded: Chunk = bitcode::decode(&encoded).unwrap();
     let duration = start.elapsed(); // End timing
-    print!("decode time: {duration:?}\n");
+    println!("decode time: {duration:?}");
 
     assert_eq!(chunk, decoded);
 
@@ -113,23 +112,25 @@ fn encode_decode_test()
     let start = Instant::now(); // Start timing
     let compressed = compress_to_vec(encoded.as_slice(), 6);
     let duration = start.elapsed(); // End timing
-    print!("compressed length: {}, time: {duration:?}\n", compressed.len());
+    println!(
+        "compressed length: {}, time: {duration:?}",
+        compressed.len()
+    );
 
     let pct_reduction = (1000.0 * compressed.len() as f32 / chunk_mem_size as f32).round() / 10.;
-    print!("%ge of original size: {pct_reduction}\n");
+    println!("%ge of original size: {pct_reduction}");
 
     // decompress
     let start = Instant::now(); // Start timing
     let decompressed = decompress_to_vec(compressed.as_slice()).unwrap();
     let duration = start.elapsed(); // End timing
-    print!("decompress time: {duration:?}\n");
+    println!("decompress time: {duration:?}");
     assert_eq!(encoded, decompressed);
     assert_eq!(encoded.len(), decompressed.len());
 
     // deserialize decompressed
     let decoded: Chunk = bitcode::decode(&decompressed).unwrap();
     assert_eq!(chunk, decoded);
-
 }
 
 #[test]

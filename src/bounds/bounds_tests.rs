@@ -1,5 +1,4 @@
-#[cfg(test)]
-use super::Bounds;
+use crate::bounds::Bounds;
 
 #[test]
 fn test_get_index_for_coords_within_bounds() {

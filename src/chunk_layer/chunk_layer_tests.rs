@@ -1,4 +1,3 @@
-#[cfg(test)]
 use crate::chunk_layer::{ChunkLayer, TIndex};
 
 #[test]

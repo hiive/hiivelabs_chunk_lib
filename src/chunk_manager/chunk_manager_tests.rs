@@ -1,9 +1,9 @@
-#[cfg(test)]
-
+use std::time::Instant;
+use crate::ChunkManager;
 use crate::TileMapDataSource;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use crate::ChunkManager;
+
 #[derive(Clone)]
 struct TestMap {
     pub(crate) data: Vec<u8>,
@@ -67,8 +67,13 @@ pub(crate) fn make_test_chunk_manager(
     chunk_padding_in_tiles: usize,
     use_random_map: bool,
 ) -> ChunkManager<u8> {
+    let start = Instant::now(); // Start timing
     let test_map = Box::new(TestMap::new(width, height, use_random_map));
-    ChunkManager::<u8>::new(
+    let duration = start.elapsed();
+    println!("Random map creation in {duration:?}");
+
+    let start = Instant::now(); // Start timing
+    let cm = ChunkManager::<u8>::new(
         width,
         height,
         layer_count,
@@ -77,7 +82,12 @@ pub(crate) fn make_test_chunk_manager(
         chunk_height,
         chunk_padding_in_tiles,
         test_map,
-    )
+    );
+
+    let duration = start.elapsed();
+    println!("Chunk Manager initialization in {duration:?}");
+    println!();
+    cm
 }
 
 fn test_init_cm_with_params(
@@ -114,48 +124,55 @@ fn test_init_cm_with_params(
 }
 
 #[test]
-fn test_init() {
+fn test_small_init() {
     test_init_cm_with_params(64, 32, 4, 32, 32, 16, 1, true);
 }
 
 #[test]
-#[should_panic(expected = "layer_chunk_lru_cache_size must be greater than zero (Recommended > 32)")]
+fn test_large_init() {
+    test_init_cm_with_params(1024, 768, 8, 32, 32, 16, 1, true);
+}
+
+#[test]
+#[should_panic(
+    expected = "layer_chunk_lru_cache_size must be greater than zero (Recommended > 32)"
+)]
 fn test_zero_lru_size() {
-    let cm = make_test_chunk_manager(10, 10, 1, 0, 5, 5, 0, false,);
+    let cm = make_test_chunk_manager(10, 10, 1, 0, 5, 5, 0, false);
 }
 
 #[test]
 #[should_panic(expected = "width and height must both be greater than zero")]
 fn test_zero_width() {
-    let cm = make_test_chunk_manager(0, 10, 1, 0, 5, 5, 0, false,);
+    let cm = make_test_chunk_manager(0, 10, 1, 0, 5, 5, 0, false);
 }
 
 #[test]
 #[should_panic(expected = "width and height must both be greater than zero")]
 fn test_zero_height() {
-    let cm = make_test_chunk_manager(10, 0, 1, 0, 5, 5, 0, false,);
+    let cm = make_test_chunk_manager(10, 0, 1, 0, 5, 5, 0, false);
 }
 
 #[test]
 #[should_panic(expected = "width and height must both be greater than zero")]
 fn test_zero_width_and_height() {
-    let cm = make_test_chunk_manager(0, 0, 1, 0, 5, 5, 0, false,);
+    let cm = make_test_chunk_manager(0, 0, 1, 0, 5, 5, 0, false);
 }
 
 #[test]
 #[should_panic(expected = "chunk_width and chunk_height must both be greater than zero")]
 fn test_zero_chunk_width() {
-    let cm = make_test_chunk_manager(10, 10, 1, 32, 0, 5, 0, false,);
+    let cm = make_test_chunk_manager(10, 10, 1, 32, 0, 5, 0, false);
 }
 
 #[test]
 #[should_panic(expected = "chunk_width and chunk_height must both be greater than zero")]
 fn test_zero_chunk_height() {
-    let cm = make_test_chunk_manager(10, 20, 1, 32, 5, 0, 0, false,);
+    let cm = make_test_chunk_manager(10, 20, 1, 32, 5, 0, 0, false);
 }
 
 #[test]
 #[should_panic(expected = "layer_count must be greater than zero")]
 fn test_zero_layer_count_height() {
-    let cm = make_test_chunk_manager(10, 10, 0, 32, 5, 5, 0, false,);
+    let cm = make_test_chunk_manager(10, 10, 0, 32, 5, 5, 0, false);
 }
