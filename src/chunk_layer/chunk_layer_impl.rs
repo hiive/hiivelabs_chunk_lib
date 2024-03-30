@@ -1,9 +1,9 @@
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
-use std::cell::RefCell;
 use miniz_oxide::deflate::compress_to_vec;
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 pub type TIndex = usize;
@@ -106,7 +106,6 @@ impl ChunkLayer {
         if self.parent_layer.borrow().is_none() {
             return false;
         }
-
 
         let parent_chunks =
             self.get_parent_chunks_for_expansion(dest_layer_tx / 2, dest_layer_ty / 2);
@@ -358,7 +357,7 @@ impl ChunkLayer {
         let mut chunks = self.chunks.borrow_mut();
         for (chunk_ix, (cx, cy)) in chunk_ixs {
             match chunks.get(&chunk_ix) {
-                Some(existing_chunk) => {
+                Some(_) => {
                     // already exists. No action required.
                 }
                 None => {

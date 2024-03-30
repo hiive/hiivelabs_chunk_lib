@@ -1,11 +1,11 @@
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
+use crate::chunk_layer::TIndex;
 use miniz_oxide::deflate::compress_to_vec;
 use miniz_oxide::inflate::decompress_to_vec;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use std::time::Instant;
-use crate::chunk_layer::TIndex;
 
 #[test]
 fn chunk_creation() {

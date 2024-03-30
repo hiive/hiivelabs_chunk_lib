@@ -81,7 +81,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         chunk_height: usize,
         chunk_padding_in_tiles: usize,
     ) -> Vec<Rc<RefCell<Option<ChunkLayer>>>> {
-
         let width_in_chunks = source.width() / chunk_width;
         let height_in_chunks = source.height() / chunk_height;
 
@@ -120,8 +119,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     fn populate_top_layer_from_source(
         owned_values: &mut Vec<T>,
         mut source: &mut Box<dyn TileMapDataSource<T>>,
-        mut current_layer: &mut ChunkLayer) {
-
+        mut current_layer: &mut ChunkLayer,
+    ) {
         let width = source.width();
         let height = source.height();
 

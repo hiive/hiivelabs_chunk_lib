@@ -1,8 +1,8 @@
-use std::time::Instant;
 use crate::ChunkManager;
 use crate::TileMapDataSource;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::time::Instant;
 
 #[derive(Clone)]
 struct TestMap {
