@@ -1,47 +1,32 @@
 #[cfg(test)]
-use super::ChunkLayer;
-use crate::chunk_layer::TIndex;
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::chunk_layer::{ChunkLayer, TIndex};
 
 #[test]
 fn test_is_chunk_border_coord() {
-    let cm = crate::chunk_manager::chunk_manager_tests::make_test_chunk_manager(
-        64, 32, 4, 32, 16, 1, false,
-    );
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 10, 10, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10);
     assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
     assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
 }
 
 #[test]
 fn test_tile_coords_to_chunk_coords() {
-    let cm = crate::chunk_manager::chunk_manager_tests::make_test_chunk_manager(
-        64, 32, 4, 32, 16, 1, false,
-    );
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 10, 10, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10);
     assert_eq!(layer.tile_coords_to_chunk_coords(15, 25), (1, 2));
 }
 
 #[test]
 fn test_chunk_coords_to_tile_coords() {
-    let cm = crate::chunk_manager::chunk_manager_tests::make_test_chunk_manager(
-        64, 32, 4, 32, 16, 1, false,
-    );
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 10, 10, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10);
     assert_eq!(layer.chunk_coords_to_tile_coords(1, 2), (10, 20));
 }
 
 #[test]
 fn test_get_chunk_indices_for_tile_coords() {
-    let cm = crate::chunk_manager::chunk_manager_tests::make_test_chunk_manager(
-        64, 32, 4, 32, 16, 1, false,
-    );
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 2, 2, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 2, 2, 1, 10, 10);
     // Assuming Bounds::get_index_for_coords and Bounds::is_in_bounds are correctly implemented
     // and chunks are properly initialized in the layer.
     // This example assumes chunks are laid out linearly and checks for boundary conditions.
@@ -104,7 +89,7 @@ fn test_get_chunk_indices_for_tile_coords() {
 #[test]
 fn test_set_and_get_top_layer_failing_case() {
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let mut layer = ChunkLayer::new(prev_layer, 1, 1, 1, 1, 10, 10);
+    let mut layer = ChunkLayer::new(prev_layer, 1, 32, 1, 1, 1, 10, 10);
 
     //for i in -1_isize..5 {
     let x = 2;
@@ -122,7 +107,7 @@ fn test_set_and_get_top_layer_failing_case() {
 #[test]
 fn test_set_and_get_top_layer() {
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let mut layer = ChunkLayer::new(prev_layer, 1, 1, 1, 1, 10, 10);
+    let mut layer = ChunkLayer::new(prev_layer, 1, 32, 1, 1, 1, 10, 10);
 
     for i in -1_isize..5 {
         let x = i;
@@ -135,5 +120,4 @@ fn test_set_and_get_top_layer() {
         let r_value = layer.get_at(x, y).expect("Value should be set");
         assert_eq!(r_value, value)
     }
-
 }

@@ -1,3 +1,9 @@
+#[cfg(test)]
+
+use crate::TileMapDataSource;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
+use crate::ChunkManager;
 #[derive(Clone)]
 struct TestMap {
     pub(crate) data: Vec<u8>,
@@ -51,16 +57,11 @@ impl TestMap {
     }
 }
 
-#[cfg(test)]
-use super::ChunkManager;
-use crate::TileMapDataSource;
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
-
 pub(crate) fn make_test_chunk_manager(
     width: usize,
     height: usize,
     layer_count: usize,
+    layer_chunk_lru_cache_size: u32,
     chunk_width: usize,
     chunk_height: usize,
     chunk_padding_in_tiles: usize,
@@ -71,6 +72,7 @@ pub(crate) fn make_test_chunk_manager(
         width,
         height,
         layer_count,
+        layer_chunk_lru_cache_size,
         chunk_width,
         chunk_height,
         chunk_padding_in_tiles,
@@ -82,6 +84,7 @@ fn test_init_cm_with_params(
     width: usize,
     height: usize,
     layer_count: usize,
+    layer_chunk_lru_cache_size: u32,
     chunk_width: usize,
     chunk_height: usize,
     chunk_padding_in_tiles: usize,
@@ -91,6 +94,7 @@ fn test_init_cm_with_params(
         width,
         height,
         layer_count,
+        layer_chunk_lru_cache_size,
         chunk_width,
         chunk_height,
         chunk_padding_in_tiles,
@@ -111,5 +115,47 @@ fn test_init_cm_with_params(
 
 #[test]
 fn test_init() {
-    test_init_cm_with_params(64, 32, 4, 32, 16, 1, true);
+    test_init_cm_with_params(64, 32, 4, 32, 32, 16, 1, true);
+}
+
+#[test]
+#[should_panic(expected = "layer_chunk_lru_cache_size must be greater than zero (Recommended > 32)")]
+fn test_zero_lru_size() {
+    let cm = make_test_chunk_manager(10, 10, 1, 0, 5, 5, 0, false,);
+}
+
+#[test]
+#[should_panic(expected = "width and height must both be greater than zero")]
+fn test_zero_width() {
+    let cm = make_test_chunk_manager(0, 10, 1, 0, 5, 5, 0, false,);
+}
+
+#[test]
+#[should_panic(expected = "width and height must both be greater than zero")]
+fn test_zero_height() {
+    let cm = make_test_chunk_manager(10, 0, 1, 0, 5, 5, 0, false,);
+}
+
+#[test]
+#[should_panic(expected = "width and height must both be greater than zero")]
+fn test_zero_width_and_height() {
+    let cm = make_test_chunk_manager(0, 0, 1, 0, 5, 5, 0, false,);
+}
+
+#[test]
+#[should_panic(expected = "chunk_width and chunk_height must both be greater than zero")]
+fn test_zero_chunk_width() {
+    let cm = make_test_chunk_manager(10, 10, 1, 32, 0, 5, 0, false,);
+}
+
+#[test]
+#[should_panic(expected = "chunk_width and chunk_height must both be greater than zero")]
+fn test_zero_chunk_height() {
+    let cm = make_test_chunk_manager(10, 20, 1, 32, 5, 0, 0, false,);
+}
+
+#[test]
+#[should_panic(expected = "layer_count must be greater than zero")]
+fn test_zero_layer_count_height() {
+    let cm = make_test_chunk_manager(10, 10, 0, 32, 5, 5, 0, false,);
 }

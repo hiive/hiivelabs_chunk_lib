@@ -1,4 +1,11 @@
 #[cfg(test)]
+use std::time::Instant;
+use miniz_oxide::inflate::decompress_to_vec;
+use miniz_oxide::deflate::compress_to_vec;
+use rand::prelude::StdRng;
+use rand::{Rng, SeedableRng};
+use crate::bounds::Bounds;
+use crate::chunk_tile::ChunkTile;
 use crate::chunk::Chunk;
 
 #[test]
@@ -46,26 +53,88 @@ fn is_not_complete() {
     assert!(!chunk.is_complete())
 }
 
-#[test]
-fn is_complete() {
-    let mut chunk = Chunk::new(0, 0, 10, 10, 1);
+fn generate_random_vector(length: usize) -> Vec<usize> {
+    // let seed = [42; 32];
+    // let mut rng = StdRng::from_seed(seed);
+    let mut rng = StdRng::from_rng(rand::thread_rng()).unwrap();
+    (0..length).map(|_| rng.gen()).collect()
+}
+
+fn build_complete_chunk(width:usize, height:usize, padding:usize, is_random:bool) -> Chunk {
+    let mut chunk = Chunk::new(0, 0, width, height, padding);
 
     let x_min = -(chunk.bounds.padding as isize);
     let x_max = (chunk.bounds.width + chunk.bounds.padding) as isize;
     let y_min = -(chunk.bounds.padding as isize);
     let y_max = (chunk.bounds.height + chunk.bounds.padding) as isize;
+    let size = chunk.chunk_width * chunk.chunk_height;
+    let values_to_use: Vec<usize> = {
+        if is_random {
+            generate_random_vector(size)
+        }
+        else { (0_usize..(chunk.chunk_width * chunk.chunk_height)).collect() }
 
-    let values_to_use: Vec<usize> =
-        (0_usize..(chunk.chunk_width * chunk.chunk_height) as usize).collect();
+    };
     let mut ix = 0;
     for y in y_min..y_max {
         for x in x_min..x_max {
-            println!("({x}, {y})");
+            // println!("({x}, {y})");
             chunk.set_at(x, y, values_to_use[ix]);
             ix += 1;
         }
     }
+    chunk
+}
 
+#[test]
+fn encode_decode_test()
+{
+    let chunk = build_complete_chunk(64, 32, 1, true);
+    let chunk_mem_size = std::mem::size_of::<Bounds>() + 2 * std::mem::size_of::<usize>()
+        + chunk.tiles.len() * std::mem::size_of::<ChunkTile>();
+    print!("chunk length: {chunk_mem_size}\n");
+
+    let start = Instant::now(); // Start timing
+    // let first_start = start;
+    // serialize
+    let encoded: Vec<u8> = bitcode::encode(&chunk);
+    let duration = start.elapsed(); // End timing
+    print!("encoded length: {}, time: {duration:?}\n", encoded.len());
+
+    // deserialize
+    let start = Instant::now(); // Start timing
+    let decoded: Chunk = bitcode::decode(&encoded).unwrap();
+    let duration = start.elapsed(); // End timing
+    print!("decode time: {duration:?}\n");
+
+    assert_eq!(chunk, decoded);
+
+    // compress
+    let start = Instant::now(); // Start timing
+    let compressed = compress_to_vec(encoded.as_slice(), 6);
+    let duration = start.elapsed(); // End timing
+    print!("compressed length: {}, time: {duration:?}\n", compressed.len());
+
+    let pct_reduction = (1000.0 * compressed.len() as f32 / chunk_mem_size as f32).round() / 10.;
+    print!("%ge of original size: {pct_reduction}\n");
+
+    // decompress
+    let start = Instant::now(); // Start timing
+    let decompressed = decompress_to_vec(compressed.as_slice()).unwrap();
+    let duration = start.elapsed(); // End timing
+    print!("decompress time: {duration:?}\n");
+    assert_eq!(encoded, decompressed);
+    assert_eq!(encoded.len(), decompressed.len());
+
+    // deserialize decompressed
+    let decoded: Chunk = bitcode::decode(&decompressed).unwrap();
+    assert_eq!(chunk, decoded);
+
+}
+
+#[test]
+fn is_complete() {
+    let chunk = build_complete_chunk(10, 10, 1, true);
     assert!(chunk.is_complete())
 }
 

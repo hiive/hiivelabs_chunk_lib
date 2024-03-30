@@ -11,4 +11,9 @@ edition = "2021"
 smallvec = { version = "1.13.1", features = ["serde"] }
 hecs = "0.10.4"
 rand = "0.8.5"
-serde = "1.0.197"
+# serde = {  version = "1.0.197", features = ["rc", "std", "derive"] }
+schnellru = "0.2.1"
+bitcode = "0.6.0"
+miniz_oxide = "0.7.2"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+

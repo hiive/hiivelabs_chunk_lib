@@ -1,12 +1,16 @@
 use crate::bounds::Bounds;
 use crate::chunk_layer::TIndex;
-use crate::chunk_tile::ChunkTile;
+// use crate::chunk_tile::ChunkTile;
 
+use bitcode::{Decode, Encode};
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct Chunk {
     pub(crate) bounds: Bounds,
     pub(crate) chunk_width: usize,
     pub(crate) chunk_height: usize,
-    pub(crate) tiles: Vec<Option<ChunkTile>>,
+    // pub(crate) tiles: Vec<Option<ChunkTile>>,
+    pub(crate) tiles: Vec<Option<TIndex>>,
 }
 
 impl Chunk {
@@ -40,7 +44,7 @@ impl Chunk {
         let tile = self.tiles[ix as usize].as_ref();
 
         match tile {
-            Some(chunk_tile) => Some(chunk_tile.value), // Return a reference to the value
+            Some(chunk_tile) => Some(*chunk_tile), // Return a reference to the value
             _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
         }
     }
@@ -59,11 +63,13 @@ impl Chunk {
         match self.tiles[ix] {
             Some(ref mut tile) => {
                 // If there is already a ChunkTile, update its value
-                tile.value = value;
+                // tile.value = value;
+                *tile = value;
             }
             None => {
                 // If there is no ChunkTile, insert a new one
-                self.tiles[ix] = Some(ChunkTile::new(tx, ty, value));
+                // self.tiles[ix] = Some(ChunkTile::new(tx, ty, value));
+                self.tiles[ix] = Some(value);
             }
         }
     }

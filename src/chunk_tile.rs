@@ -1,7 +1,9 @@
-// #[derive(Debug)]
 
 use crate::chunk_layer::TIndex;
 
+use bitcode::{Decode, Encode};
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct ChunkTile {
     #[cfg(debug_assertions)]
     pub x: isize,

@@ -1,3 +1,6 @@
+use bitcode::{Decode, Encode};
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct Bounds {
     pub(crate) x: isize,
     pub(crate) y: isize,
@@ -25,10 +28,7 @@ impl Bounds {
         let padded_height = height + 2 * padding;
         if self.assert_on_out_of_bounds {
             assert!(
-                (adj_x >= 0)
-                    && (adj_x < padded_width)
-                    && (adj_y >= 0)
-                    && (adj_y < padded_height),
+                (adj_x >= 0) && (adj_x < padded_width) && (adj_y >= 0) && (adj_y < padded_height),
                 "Chunk coordinates are out of bounds"
             );
         }

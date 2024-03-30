@@ -11,28 +11,42 @@ pub struct ChunkManager<T> {
     owned_values: Vec<T>,
 }
 
-impl<'l, T: std::fmt::Debug> ChunkManager<T> {
+impl<T: std::fmt::Debug> ChunkManager<T> {
     pub fn new(
         width: usize,
         height: usize,
         layer_count: usize,
+        layer_chunk_lru_cache_size: u32,
         chunk_width: usize,
         chunk_height: usize,
         chunk_padding_in_tiles: usize,
         source: Box<dyn TileMapDataSource<T>>,
     ) -> Self {
+        assert!(width > 0 && height > 0,
+                "width and height must both be greater than zero");
+        assert!(chunk_width > 0 && chunk_height > 0,
+                "chunk_width and chunk_height must both be greater than zero");
         assert!(
             width % chunk_width == 0 && height % chunk_height == 0,
             "width/height must be exactly divisible by chunk width/height"
         );
+        assert!(
+            layer_count > 0,
+            "layer_count must be greater than zero"
+        );
+        assert!(
+            layer_chunk_lru_cache_size > 0,
+            "layer_chunk_lru_cache_size must be greater than zero (Recommended > 32)"
+        );
 
         // create the owned values vector
         let mut owned_values = Vec::<T>::with_capacity(width * height); // todo - size calc correctly
-                                                                        // create the layers
+        // create the layers
         let layers = ChunkManager::init_layers(
             &mut owned_values,
             source,
             layer_count,
+            layer_chunk_lru_cache_size,
             chunk_width,
             chunk_height,
             chunk_padding_in_tiles,
@@ -47,9 +61,10 @@ impl<'l, T: std::fmt::Debug> ChunkManager<T> {
     }
 
     fn init_layers(
-        mut owned_values: &mut Vec<T>,
+        owned_values: &mut Vec<T>,
         mut source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
+        layer_chunk_lru_cache_size: u32,
         chunk_width: usize,
         chunk_height: usize,
         chunk_padding_in_tiles: usize,
@@ -68,6 +83,7 @@ impl<'l, T: std::fmt::Debug> ChunkManager<T> {
             let mut current_layer = ChunkLayer::new(
                 parent_layer,
                 layer_id,
+                layer_chunk_lru_cache_size,
                 f * width_in_chunks,
                 f * height_in_chunks,
                 chunk_padding_in_tiles,
@@ -96,7 +112,8 @@ impl<'l, T: std::fmt::Debug> ChunkManager<T> {
                     // for the stored value
                     owned_values.push(item);
                     {
-                        top_layer.set_at(x, y, owned_values.len() -1);
+                        let t_index: TIndex = owned_values.len() - 1;
+                        top_layer.set_at(x, y, t_index);
                     }
                 }
             }
@@ -119,8 +136,8 @@ impl<'l, T: std::fmt::Debug> ChunkManager<T> {
                 let y = if z == 0 { y } else { y.pow(z as u32) };
                 // get the layer - this has to be in two stages to keep the ref
                 // around long enough
-                let layer_ref = layer_rc.borrow();
-                let layer = layer_ref.as_ref().unwrap();
+                let layer_opt = layer_rc.borrow();
+                let layer = layer_opt.as_ref().unwrap();
                 // layer.get_at(x, y)
                 match layer.get_at(x, y) {
                     Some(ix) => Some(&self.owned_values[ix]),

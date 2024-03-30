@@ -1,16 +1,17 @@
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
+use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
-use std::option::Option;
 use std::rc::Rc;
+use miniz_oxide::deflate::compress_to_vec;
 
 pub type TIndex = usize;
 
 pub struct ChunkLayer {
     layer_id: usize,
+    layer_chunk_lru_cache_size: u32,
     bounds: Bounds, // this is in chunks, not tile-coords
 
     width_in_tiles: usize,
@@ -18,10 +19,8 @@ pub struct ChunkLayer {
     chunk_padding_in_tiles: usize,
     chunk_width: usize,
     chunk_height: usize,
-    chunks: HashMap<isize, Chunk>,
-    // manager: Option<&'m Arc<&'m ChunkManager<'m, T>>>,
+    chunks: RefCell<LruMap<isize, Chunk>>,
     parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
-    // owned_values: Vec<usize>,
 }
 
 impl ChunkLayer {
@@ -30,9 +29,9 @@ impl ChunkLayer {
     }
 
     pub fn new(
-        // manager: &'m ChunkManager<'m, T>,
         parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
         layer_id: usize,
+        layer_chunk_lru_cache_size: u32,
         width_in_chunks: usize,
         height_in_chunks: usize,
         chunk_padding_in_tiles: usize,
@@ -43,14 +42,17 @@ impl ChunkLayer {
         let height_in_tiles = height_in_chunks * chunk_height;
         let chunks = {
             let hashmap_capacity = width_in_chunks * height_in_chunks;
-            let mut hashmap = HashMap::with_capacity(hashmap_capacity);
+            // let hashmap = HashMap::with_capacity(hashmap_capacity);
+            let mut hashmap = LruMap::new(ByLength::new(layer_chunk_lru_cache_size));
+            hashmap.reserve_or_panic(hashmap_capacity);
             // hashmap.resize_with(vec_size, Default::default);
-            hashmap
+            RefCell::new(hashmap)
         };
 
         // let chunk_store = World::new();
         Self {
             layer_id,
+            layer_chunk_lru_cache_size,
             bounds: Bounds {
                 x: 0,
                 y: 0,
@@ -71,10 +73,9 @@ impl ChunkLayer {
         }
     }
 
-
-    pub(crate) fn get_hash_index_for_chunk_coords(&self, cx:isize, cy:isize) -> Option<isize> {
-
-        if cx < 0 || cx >= self.bounds.width as isize || cy < 0 || cy >= self.bounds.height as isize {
+    pub(crate) fn get_hash_index_for_chunk_coords(&self, cx: isize, cy: isize) -> Option<isize> {
+        if cx < 0 || cx >= self.bounds.width as isize || cy < 0 || cy >= self.bounds.height as isize
+        {
             return None;
         }
 
@@ -82,13 +83,40 @@ impl ChunkLayer {
         Some(ix)
     }
 
-    pub(crate) fn populate_chunk_at(
+    fn get_parent_chunks_for_expansion(&self, parent_tx: isize, parent_ty: isize) -> Vec<Chunk> {
+        // Directly borrow `parent_layer` for longer scope.
+        let parent_layer_ref = self.parent_layer.borrow();
+        let parent_layer = parent_layer_ref.as_ref().expect("No parent layer for this layer");
+
+        // Now `parent_layer` can be used safely within this scope.
+        let indices = parent_layer.get_chunk_indices_for_tile_coords(parent_tx, parent_ty);
+        let chunks = indices
+            .iter()
+            .map(|i| {
+                let mut chunks = parent_layer.chunks.borrow_mut();
+                let parent_chunk = chunks.get(&i.0).expect("No chunk found.");
+                parent_chunk.clone()
+            })
+            .collect();
+        chunks
+    }
+
+    pub(crate) fn populate_chunk_at(&mut self, dest_layer_tx: isize, dest_layer_ty: isize) {
+        let parent_layer = self.parent_layer.borrow().is_none();
+
+        let parent_chunks =
+            self.get_parent_chunks_for_expansion(dest_layer_tx / 2, dest_layer_ty / 2);
+        self.populate_chunk_from_parent(&parent_chunks, dest_layer_tx, dest_layer_ty);
+    }
+
+    pub(crate) fn populate_chunk_from_parent(
         &mut self,
-        source_layer: &ChunkLayer,
+        parent_chunks: &Vec<Chunk>,
         dest_layer_tx: isize,
         dest_layer_ty: isize,
     ) {
         // calculate the bounds of the chunk at this layer in terms of the layer above.
+        /*
         let dest_chunk_indices =
             self.get_chunk_indices_for_tile_coords(dest_layer_tx, dest_layer_ty);
         for (dest_chunk_index, _) in dest_chunk_indices {
@@ -99,15 +127,23 @@ impl ChunkLayer {
             }
         }
 
+         */
+
         // CHANGE THE FOLLOWING
         // get the extent of the previous layer chunk
-        let prev_chunk_indices =
-            source_layer.get_chunk_indices_for_tile_coords(dest_layer_tx / 2, dest_layer_ty / 2);
 
-        for (c_ix, _) in prev_chunk_indices {
-            // let source_chunk_opt =
-            let source_chunk = source_layer.chunks.get(&c_ix).unwrap();
+        /*
+        let prev_chunk_indices: Vec<Option<&Chunk>> = {
+            let parent_layer_opt = self.parent_layer.borrow();
+            let parent_layer = parent_layer_opt.as_ref().unwrap();
+            let indices = parent_layer.get_chunk_indices_for_tile_coords(dest_layer_tx / 2, dest_layer_ty / 2);
+            indices.iter().map(|i| parent_layer.get_chunk_by_index(i.0)).collect()
+        };
+         */
 
+        //let parent_chunks = self.get_parent_chunks_for_expansion(dest_layer_tx / 2, dest_layer_ty / 2);
+
+        for source_chunk in parent_chunks {
             // get the bounds of the source chunk
             let source_x = source_chunk.bounds.x;
             let source_y = source_chunk.bounds.y;
@@ -116,24 +152,21 @@ impl ChunkLayer {
             for sy in source_y..source_h {
                 for sx in source_x..source_w {
                     let o_v = source_chunk.get_at(sx, sy);
-                    match o_v {
-                        Some(v) => {
-                            let source_tile_value = source_chunk.tiles[v]
-                                .as_ref()
-                                .expect("Source Chunk Has no value set")
-                                .value;
-                            // populate the dest chunk
-                            for dy in 0_isize..2 {
-                                for dx in 0_isize..2 {
-                                    self.set_at(
-                                        dest_layer_tx + dx,
-                                        dest_layer_ty + dy,
-                                        source_tile_value,
-                                    )
-                                }
+                    if let Some(v) = o_v {
+                        let source_tile_value = source_chunk.tiles[v]
+                            //.as_ref()
+                            .expect("Source Chunk Has no value set");
+                            //.value;
+                        // populate the dest chunk
+                        for dy in 0_isize..2 {
+                            for dx in 0_isize..2 {
+                                self.set_at(
+                                    dest_layer_tx + dx,
+                                    dest_layer_ty + dy,
+                                    source_tile_value,
+                                )
                             }
                         }
-                        None => {}
                     }
                 }
             }
@@ -192,7 +225,7 @@ impl ChunkLayer {
         }
 
         // figure out a chunk that these coords are in
-        let (mut cx, mut cy) = self.tile_coords_to_chunk_coords(tx, ty);
+        let (cx, cy) = self.tile_coords_to_chunk_coords(tx, ty);
         // #[cfg(debug_assertions)]
         // println!("ChunkLayer::get_chunk_indices_for_tile_coords: tile_coords_to_chunk_coords: ({tx}, {ty}) -> ({cx}, {cy})");
 
@@ -204,7 +237,7 @@ impl ChunkLayer {
             Some(ix) => {
                 // chunk index valid
                 chunk_indices.push((ix, (cx, cy)));
-            },
+            }
             None => {
                 // if the chunk index is not valid, then we need to
                 // take this into account... todo!
@@ -213,7 +246,7 @@ impl ChunkLayer {
 
         // /*
         // are they on a boundary?
-        let (mut x_is_boundary, mut y_is_boundary) = self.is_chunk_border_coord(tx, ty);
+        let (x_is_boundary, y_is_boundary) = self.is_chunk_border_coord(tx, ty);
 
         if !x_is_boundary && !y_is_boundary {
             // easiest case; these coords are in one chunk only.
@@ -224,8 +257,20 @@ impl ChunkLayer {
             let chunk_r = c_tx + self.chunk_width as isize;
             let chunk_b = c_ty + self.chunk_width as isize;
             // check if boundary is left or right, top or bottom
-            let d_cx = { if tx == chunk_r { 1 /* right */ } else { -1 /* left */ } };
-            let d_cy = { if ty == chunk_b { 1 /* down */ } else { -1 /* up */ } };
+            let d_cx = {
+                if tx == chunk_r {
+                    1 /* right */
+                } else {
+                    -1 /* left */
+                }
+            };
+            let d_cy = {
+                if ty == chunk_b {
+                    1 /* down */
+                } else {
+                    -1 /* up */
+                }
+            };
             // check right
             if x_is_boundary {
                 // it's on the x boundary, so do we need the chunk to the right?
@@ -240,7 +285,6 @@ impl ChunkLayer {
             if x_is_boundary && y_is_boundary {
                 self.add_boundary_chunk_if_in_bounds(&mut chunk_indices, cx + d_cx, cy + d_cy);
             }
-
         }
 
         chunk_indices
@@ -256,13 +300,10 @@ impl ChunkLayer {
         let chunk_ix = self.get_hash_index_for_chunk_coords(cx, cy);
         // check we are in bounds
         // if self.bounds.is_in_bounds(chunk_ix) {
-        match chunk_ix {
-            Some(ix) => {
-                if self.bounds.is_in_bounds(ix) {
-                    chunk_indices.push((ix, (cx, cy)))
-                }
-            },
-            _ => {}
+        if let Some(ix) = chunk_ix {
+            if self.bounds.is_in_bounds(ix) {
+                chunk_indices.push((ix, (cx, cy)))
+            }
         }
     }
 
@@ -317,13 +358,13 @@ impl ChunkLayer {
     fn ensure_chunk_exists(&mut self, tx: isize, ty: isize) {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
 
+        let mut chunks = self.chunks.borrow_mut();
         for (chunk_ix, (cx, cy)) in chunk_ixs {
-            match self.chunks.get(&chunk_ix) {
+            match chunks.get(&chunk_ix) {
                 Some(_) => {
                     // already exists. No action required.
                 }
                 None => {
-
                     let (c_tx, c_ty) = self.chunk_coords_to_tile_coords(cx, cy);
 
                     // #[cfg(debug_assertions)]
@@ -336,10 +377,25 @@ impl ChunkLayer {
                         self.chunk_height,
                         self.chunk_padding_in_tiles,
                     );
-                    self.chunks.insert(chunk_ix, new_chunk);
+                    if chunks.len() == self.layer_chunk_lru_cache_size as usize {
+                        // the cache is full.
+                        // pop the oldest
+                        if let Some((ix, oldest_chunk)) = chunks.peek_oldest()
+                        {
+                            // need to store this chunk
+                            self.store_chunk(ix, oldest_chunk);
+                        }
+
+                    }
+                    chunks.insert(chunk_ix, new_chunk);
                 }
             }
         }
+    }
+    fn store_chunk(&self, chunk_ix: &isize, chunk: &Chunk) {
+        // todo - make sure we store sizes in the db
+        let encoded= bitcode::encode(chunk);
+        let compressed = compress_to_vec(encoded.as_slice(), 6);
     }
 
     pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) {
@@ -354,8 +410,8 @@ impl ChunkLayer {
 
         // let value_ref = self.owned_values.last().unwrap();
         for (chunk_ix, _) in chunk_ixs {
-            // let mut chunk_opt = ;
-            let mut chunk = self.chunks.get_mut(&chunk_ix).unwrap(); // we know the chunk exists.
+            let mut chunks = self.chunks.borrow_mut();
+            let chunk = chunks.get(&chunk_ix).unwrap(); // we know the chunk exists.
 
             // #[cfg(debug_assertions)]
             // println!("ChunkLayer::set_at: chunk[ix]: ({chunk_ix})");
@@ -366,18 +422,15 @@ impl ChunkLayer {
 
     pub fn get_at(&self, tx: isize, ty: isize) -> Option<TIndex> {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
-        if chunk_ixs.len() == 0 {
+        if chunk_ixs.is_empty() {
             return None;
         }
         let (chunk_ix, _) = chunk_ixs[0];
-
-        let chunk = self.chunks.get(&chunk_ix);
+        let mut chunks = self.chunks.borrow_mut();
+        let chunk = chunks.get(&chunk_ix);
 
         match chunk {
-            Some(chunk) => {
-                let chunk_ix = chunk.get_at(tx, ty);
-                return chunk_ix;
-            }
+            Some(chunk) => chunk.get_at(tx, ty),
             _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
         }
     }
