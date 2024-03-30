@@ -1,10 +1,7 @@
 use crate::tilemap_datasource::TileMapDataSource;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use schnellru::LruMap;
-use crate::chunk::Chunk;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
 pub struct ChunkManager<T> {
@@ -52,7 +49,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // create the owned values vector
         let mut owned_values = Vec::<T>::with_capacity(width * height * layer_count);
+
+        #[cfg(debug_assertions)]
         println!("reserved space: {}", width * height * layer_count);
+
         // create the layers
         let layers = ChunkManager::init_layers(
             &mut owned_values,
@@ -81,19 +81,18 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         chunk_height: usize,
         chunk_padding_in_tiles: usize,
     ) -> Vec<Rc<RefCell<Option<ChunkLayer>>>> {
-        let height = source.height();
-        let width = source.width();
-        let width_in_chunks = width / chunk_width;
-        let height_in_chunks = height / chunk_height;
+
+        let width_in_chunks = source.width() / chunk_width;
+        let height_in_chunks = source.height() / chunk_height;
 
         // create the layers
         let mut layers = Vec::with_capacity(layer_count);
-        let mut prev_layer: Rc<RefCell<Option<ChunkLayer>>> = Rc::new(RefCell::new(None));
+        let mut prev_layer = Rc::new(RefCell::new(None));
         for layer_id in 0..layer_count {
-            let f = 2usize.pow((layer_id + 1) as u32);
-            let parent_layer = Rc::clone(&prev_layer);
+            // each layer is double the width/height of the previous one.
+            let f = 2_usize.pow((layer_id + 1) as u32);
             let mut current_layer = ChunkLayer::new(
-                parent_layer,
+                Rc::clone(&prev_layer),
                 layer_id,
                 layer_chunk_lru_cache_size,
                 f * width_in_chunks,
@@ -103,31 +102,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 chunk_height,
             );
 
-            // build the map of vec index to (x, y) to drain the vector
-            let mut ix_map = HashMap::new();
-            for y in 0..height {
-                for x in 0..width {
-                    if let Some(ix) = source.get_index_of(x, y) {
-                        ix_map.insert(ix, (x as isize, y as isize));
-                    }
-                }
-            }
-
             // if we're on the top layer, populate it with the map data
             if layer_id == 0 {
-                // populate top layer
-                let mut map_data = { source.take_data() }; // take the map data
-                let top_layer = &mut current_layer;
-                for (ix, item) in map_data.drain(..).enumerate() {
-                    let (x, y) = ix_map[&ix];
-                    // store the value and set the layer coords with the index value
-                    // for the stored value
-                    owned_values.push(item);
-                    {
-                        let t_index: TIndex = owned_values.len() - 1;
-                        top_layer.set_at(x, y, t_index);
-                    }
-                }
+                // build the map of vec index to (x, y) to drain the vector
+                Self::populate_top_layer_from_source(owned_values, &mut source, &mut current_layer);
             }
             // set up prev layer for the next iteration
             prev_layer = ChunkLayer::make_layer_rc(Some(current_layer));
@@ -137,6 +115,38 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         }
 
         layers
+    }
+
+    fn populate_top_layer_from_source(
+        owned_values: &mut Vec<T>,
+        mut source: &mut Box<dyn TileMapDataSource<T>>,
+        mut current_layer: &mut ChunkLayer) {
+
+        let width = source.width();
+        let height = source.height();
+
+        let mut ix_map = HashMap::with_capacity(width * height);
+        for y in 0..height {
+            for x in 0..width {
+                if let Some(ix) = source.get_index_of(x, y) {
+                    ix_map.insert(ix, (x as isize, y as isize));
+                }
+            }
+        }
+
+        // populate top layer
+        let mut map_data = { source.take_data() }; // take the map data
+        let top_layer = &mut current_layer;
+        for (ix, item) in map_data.drain(..).enumerate() {
+            let (x, y) = ix_map[&ix];
+            // store the value and set the layer coords with the index value
+            // for the stored value
+            owned_values.push(item);
+            {
+                let t_index: TIndex = owned_values.len() - 1;
+                top_layer.set_at(x, y, t_index);
+            }
+        }
     }
 
     /// Retrieve the tile at coordinates `(x, y)` in layer `z`, where `z` is the
