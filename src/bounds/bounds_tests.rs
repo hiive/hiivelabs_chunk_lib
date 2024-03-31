@@ -10,10 +10,17 @@ fn test_get_index_for_coords_within_bounds() {
         padding: 0,
     };
 
-    let (index, x, y) = bounds.get_index_for_coords(5, 5, false);
-    assert_eq!(index, 55);
-    assert_eq!(x, 5);
-    assert_eq!(y, 5);
+    let result = bounds.get_index_for_coords(5, 5, false);
+    match result {
+        Ok((index, x, y)) => {
+            assert_eq!(index, 55);
+            assert_eq!(x, 5);
+            assert_eq!(y, 5);
+        }
+        Err(msg) => {
+            panic!("{msg}");
+        }
+    }
 }
 
 #[test]
@@ -27,7 +34,13 @@ fn test_get_index_for_coords_out_of_bounds_panic() {
         padding: 0,
     };
 
-    bounds.get_index_for_coords(11, 11, true);
+    let result = bounds.get_index_for_coords(11, 11, true);
+    match result {
+        Ok(_) => {}
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 }
 
 #[test]
@@ -40,8 +53,16 @@ fn test_get_index_for_coords_out_of_bounds_no_panic() {
         padding: 0,
     };
 
-    let ix = bounds.get_index_for_coords(11, 11, false);
-    assert_eq!(ix, (121, 11, 11))
+    let result = bounds.get_index_for_coords(11, 11, false);
+
+    match result {
+        Ok(ix_xy) => {
+            assert_eq!(ix_xy, (121, 11, 11))
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 }
 
 #[test]
@@ -54,20 +75,56 @@ fn test_is_in_bounds_limits() {
         padding: 1, // Adjusted padding to ensure the logic in `is_in_bounds` is correct.
     };
 
-    let (ix, _, _) = bounds.get_index_for_coords(0, 0, false);
-    assert!(bounds.is_in_bounds(ix));
+    let result= bounds.get_index_for_coords(0, 0, false);
+    match result {
+        Ok((ix, _, _)) => {
+            assert!(bounds.is_in_bounds(ix));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 
-    let (ix, _, _) = bounds.get_index_for_coords(-1, -1, false);
-    assert!(bounds.is_in_bounds(ix));
+    let result = bounds.get_index_for_coords(-1, -1, false);
+    match result {
+        Ok((ix, _, _)) => {
+            assert!(bounds.is_in_bounds(ix));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 
-    let (ix, _, _) = bounds.get_index_for_coords(-2, -2, false);
-    assert!(!bounds.is_in_bounds(ix));
+    let result = bounds.get_index_for_coords(-2, -2, false);
+    match result {
+        Ok((ix, _, _)) => {
+            assert!(!bounds.is_in_bounds(ix));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 
-    let (ix, _, _) = bounds.get_index_for_coords(11, 11, false);
-    assert!(!bounds.is_in_bounds(ix));
+    let result = bounds.get_index_for_coords(11, 11, false);
 
-    let (ix, _, _) = bounds.get_index_for_coords(12, 12, false);
-    assert!(!bounds.is_in_bounds(ix));
+    match result {
+        Ok((ix, _, _)) => {
+            assert!(!bounds.is_in_bounds(ix));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
+
+    let result = bounds.get_index_for_coords(12, 12, false);
+    match result {
+        Ok((ix, _, _)) => {
+            assert!(!bounds.is_in_bounds(ix));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 }
 
 #[test]
@@ -97,12 +154,20 @@ fn test_get_index_for_coords_with_padding() {
     };
 
     // Coordinates within the padding area (top-left corner)
-    let (_, x, y) = bounds.get_index_for_coords(-5, -5, false);
-    // Expectations need to adjust based on your implementation of get_index_for_coords
-    // This example assumes (x, y) coordinates are transformed relative to padding.
-    assert_eq!(x, 5); // Adjusted x coordinate within padding
-    assert_eq!(y, 5); // Adjusted y coordinate within padding
-                      // Index calculation will depend on the specific layout logic of your chunks
+    let result = bounds.get_index_for_coords(-5, -5, false);
+    match result {
+        Ok((_, x, y)) => {
+            // Expectations need to adjust based on your implementation of get_index_for_coords
+            // This example assumes (x, y) coordinates are transformed relative to padding.
+            assert_eq!(x, 5); // Adjusted x coordinate within padding
+            assert_eq!(y, 5); // Adjusted y coordinate within padding
+            // Index calculation will depend on the specific layout logic of your chunks
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
+
 }
 
 #[test]
@@ -117,11 +182,27 @@ fn coordinates_within_padding_are_in_bounds() {
 
     // Example assumes get_index_for_coords gives a linear index for the coordinate.
     // Adjust the logic to match your actual index calculation.
-    let within_padding_top_left = bounds.get_index_for_coords(-1, -1, false).0;
-    assert!(bounds.is_in_bounds(within_padding_top_left));
+    let result = bounds.get_index_for_coords(-1, -1, false);
+    match result {
+        Ok(within_padding_top_left) => {
+            assert!(bounds.is_in_bounds(within_padding_top_left.0));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 
-    let within_padding_bottom_right = bounds.get_index_for_coords(11, 11, false).0;
-    assert!(bounds.is_in_bounds(within_padding_bottom_right));
+
+    let result = bounds.get_index_for_coords(11, 11, false);
+    match result {
+        Ok(within_padding_bottom_right) => {
+            assert!(bounds.is_in_bounds(within_padding_bottom_right.0));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
+
 }
 
 #[test]
@@ -135,9 +216,25 @@ fn coordinates_outside_padding_are_out_of_bounds() {
     };
 
     // Outside the padding area
-    let outside_padding_top_left = bounds.get_index_for_coords(-6, -6, false).0;
-    assert!(!bounds.is_in_bounds(outside_padding_top_left));
+    let result = bounds.get_index_for_coords(-6, -6, false);
+    match result {
+        Ok(outside_padding_top_left) => {
+            assert!(!bounds.is_in_bounds(outside_padding_top_left.0));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
 
-    let outside_padding_bottom_right = bounds.get_index_for_coords(16, 16, false).0;
-    assert!(!bounds.is_in_bounds(outside_padding_bottom_right));
+
+    let result = bounds.get_index_for_coords(16, 16, false);
+    match result {
+        Ok(outside_padding_bottom_right) => {
+            assert!(!bounds.is_in_bounds(outside_padding_bottom_right.0));
+        }
+        Err(msg) => {
+            panic!("{msg}")
+        }
+    }
+
 }

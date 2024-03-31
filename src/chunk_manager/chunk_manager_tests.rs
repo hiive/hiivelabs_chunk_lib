@@ -9,6 +9,7 @@ struct TestMap {
     pub(crate) data: Vec<u8>,
     width: usize,
     height: usize,
+    oob_index: usize,
 }
 
 impl TileMapDataSource<u8> for TestMap {
@@ -35,23 +36,32 @@ impl TileMapDataSource<u8> for TestMap {
     }
 
     fn get_default_out_of_bounds_value_index(&self) -> usize {
-        0xFF
+        self.oob_index
     }
 }
 
 impl TestMap {
     pub fn new(width: usize, height: usize, is_random: bool) -> Self {
-        let data = if is_random {
-            Self::generate_random_vector(width * height)
+        let data_len = width * height;
+        let mut data = if is_random {
+            Self::generate_random_vector(data_len)
         } else {
-            (0..width * height)
+            (0..data_len)
                 .map(|i| 0_u8.wrapping_add(i as u8) % 0xFE)
                 .collect()
         };
+        // ensure that there is a 0xFF in the data
+        let oob_index = data_len - 1;
+        data[oob_index] = 0xFF;
+
+        println!("OOB VALUE: {}", data[oob_index]);
+
+
         Self {
             width,
             height,
             data,
+            oob_index,
         }
     }
     fn generate_random_vector(length: usize) -> Vec<u8> {
@@ -182,7 +192,7 @@ fn test_can_get_from_non_zero_layer() {
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true);
 
     println!("[INITIAL]");
-    cm.print_debug_layers();
+    cm.print_debug_layers(false);
 
     let c = 2_isize.pow(4);
     println!("Looking at ({c}, {c}, 3)");
@@ -190,15 +200,36 @@ fn test_can_get_from_non_zero_layer() {
     println!("test_val: {test_val:02X}");
 
     println!("[INTERIM]");
-    cm.print_debug_layers();
+    cm.print_debug_layers(false);
+    for l in 0..5 {
+        let bounds = cm.get_bounds_for_layer(l, true);
+        println!("Layer {l} bounds: {bounds:?}");
+    }
 
-    for y in 0..cm.height as isize * 8 {
-        for x in 0..cm.width as isize * 8 {
-            let v1 = cm.get_at(x, y, 3);
-            let v0 = cm.get_at(x / 8, y / 8, 0);
-            assert_eq!(v1, v0);
+    let padded_bounds_3 = cm.get_bounds_for_layer(3, true)
+        .expect("Layer bounds error");
+
+    let cropped_bounds_3 = cm.get_bounds_for_layer(3, false)
+        .expect("Layer bounds error");
+
+    let (padded_x_min, padded_y_min, padded_x_max, padded_y_max) = padded_bounds_3;
+    let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds_3;
+    println!("Layer 3 padded bounds: {padded_bounds_3:?}");
+    println!("Layer 3 cropped bounds: {padded_bounds_3:?}");
+    println!("Prior bounds: (0, 0, {}, {})", cm.width as isize * 8, cm.height as isize * 8);
+    // return;
+    for y in padded_y_min..padded_y_max {
+        for x in padded_x_min..padded_x_max {
+            let v3 = cm.get_at(x, y, 3).unwrap();
+            let (x0, y0) = (x/8, y/8);
+            let v0 = cm.get_at(x0, y0, 0).unwrap();
+            let v3s = std::format!("{v3:02X}");
+            let v0s = std::format!("{v0:02X}");
+            if x >= cropped_x_min && y >= cropped_y_min && x < cropped_x_max && y < cropped_y_max {
+                assert_eq!(v3s, v0s, "({x} {y}, 3):[{v3s}] -> ({x0}, {y0}, 0):[{v0s}]");
+            }
         }
     }
     println!("[FINAL]");
-    cm.print_debug_layers();
+    cm.print_debug_layers(true);
 }

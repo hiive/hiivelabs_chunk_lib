@@ -19,7 +19,7 @@ pub struct ChunkLayer {
     pub(crate) chunk_height_in_tiles: usize,
     pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
-    pub(crate) default_out_of_bounds_value: Option<TIndex>,
+    pub(crate) out_of_bounds_value_index: Option<TIndex>,
 }
 
 impl ChunkLayer {
@@ -50,10 +50,10 @@ impl ChunkLayer {
         };
 
         // if layer_id == 0 {
-        //     assert!(default_out_of_bounds_value.is_some(), "No default value for layer 0");
+        //     assert!(out_of_bounds_value_index.is_some(), "No default value for layer 0");
         // }
         // else {
-        //     assert!(default_out_of_bounds_value.is_none(), "Default value for layer >0");
+        //     assert!(out_of_bounds_value_index.is_none(), "Default value for layer >0");
         // }
 
         // let chunk_store = World::new();
@@ -78,7 +78,7 @@ impl ChunkLayer {
             chunk_height_in_tiles,
             chunks,
             parent_layer,
-            default_out_of_bounds_value,
+            out_of_bounds_value_index: default_out_of_bounds_value,
         }
     }
 
@@ -435,7 +435,7 @@ impl ChunkLayer {
             // #[cfg(debug_assertions)]
             // println!("ChunkLayer::set_at: chunk[ix]: ({chunk_ix})");
 
-            chunk.set_at(tx, ty, value);
+            let result = chunk.set_at(tx, ty, value);
         }
     }
 
@@ -443,7 +443,7 @@ impl ChunkLayer {
         let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(true);
         if tx < min_x || tx >= max_x || ty < min_y || ty >= max_y {
             // short circuit
-            return self.default_out_of_bounds_value;
+            return self.out_of_bounds_value_index;
         }
 
         let opt_chunk_idx = self.get_queryable_chunk_index(tx, ty);
@@ -465,7 +465,7 @@ impl ChunkLayer {
         let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(true);
         if tx < min_x || tx >= max_x || ty < min_y || ty >= max_y {
             // short circuit
-            return self.default_out_of_bounds_value;
+            return self.out_of_bounds_value_index;
         }
         let opt_chunk_idx = self.get_queryable_chunk_index(tx, ty);
         match opt_chunk_idx {
@@ -475,17 +475,17 @@ impl ChunkLayer {
 
                 match chunk {
                     Some(chunk) => {
-                        chunk.get_at_or_default(tx, ty, self.default_out_of_bounds_value)
+                        chunk.get_at_or_default(tx, ty, self.out_of_bounds_value_index)
                     }
                     _ => {
-                        // println!("Got default value 2: {:?}", self.default_out_of_bounds_value);
-                        self.default_out_of_bounds_value
+                        // println!("Got default value 2: {:?}", self.out_of_bounds_value_index);
+                        self.out_of_bounds_value_index
                     }
                 }
             }
             None => {
-                // println!("Got default value 3: {:?}", self.default_out_of_bounds_value);
-                self.default_out_of_bounds_value
+                // println!("Got default value 3: {:?}", self.out_of_bounds_value_index);
+                self.out_of_bounds_value_index
             }
         }
     }
@@ -520,7 +520,7 @@ impl ChunkLayer {
     }
      */
 
-    pub(crate) fn print_debug(&mut self) {
+    pub(crate) fn print_debug(&mut self, with_padding: bool) {
         let id = self.layer_id;
         println!();
 
@@ -535,7 +535,7 @@ impl ChunkLayer {
         );
         println!("(x, y, w, h) = {bb:?}");
 
-        let (x0, y0, x1, y1) = self.tile_bounds.get_bound_coords(true);
+        let (x0, y0, x1, y1) = self.tile_bounds.get_bound_coords(with_padding);
         println!("(x0, y0, x1, y1) = {:?}", (x0, y0, x1, y1));
 
         for y in y0..y1 {
@@ -683,7 +683,7 @@ impl ChunkLayer {
                         //
                         // this is to help debug
                         //let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                        chunk.set_at(this_layer_x, this_layer_y, parent_tile);
+                        let _ = chunk.set_at(this_layer_x, this_layer_y, parent_tile);
                         // self.set_at(this_layer_x, this_layer_y, parent_tile);
                         //}));
 

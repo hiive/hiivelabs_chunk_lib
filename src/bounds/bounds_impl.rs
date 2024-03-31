@@ -22,8 +22,8 @@ impl Bounds {
         &self,
         x: isize,
         y: isize,
-        assert_on_out_of_bounds: bool,
-    ) -> (isize, isize, isize) {
+        err_on_out_of_bounds: bool,
+    ) -> Result<(isize, isize, isize), &str> {
         let padding = self.padding as isize;
         let width = self.width as isize;
         let height = self.height as isize;
@@ -40,13 +40,13 @@ impl Bounds {
 
         let padded_width = width + 2 * padding;
         let padded_height = height + 2 * padding;
-        if assert_on_out_of_bounds {
-            assert!(
-                (adj_x >= 0) && (adj_x < padded_width) && (adj_y >= 0) && (adj_y < padded_height),
-                "Chunk coordinates are out of bounds"
-            );
+        if err_on_out_of_bounds {
+            if(adj_x < 0) || (adj_x >= padded_width) || (adj_y < 0) || (adj_y >= padded_height)
+            {
+                return Err("Chunk coordinates are out of bounds");
+            }
         }
-        (adj_y * padded_width + adj_x, adj_x, adj_y)
+        Ok((adj_y * padded_width + adj_x, adj_x, adj_y))
     }
 
     pub(crate) fn get_bound_coords(&self, include_padding: bool) -> (isize, isize, isize, isize) {

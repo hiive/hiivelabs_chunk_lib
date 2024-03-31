@@ -26,16 +26,16 @@ fn get_at_for_empty_tile() {
 #[test]
 fn set_at_for_occupied_tile() {
     let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-    chunk.set_at(5, 5, 42); // Assuming ChunkTile takes an i32 for this example
+    let _ = chunk.set_at(5, 5, 42); // Assuming ChunkTile takes an i32 for this example
     assert_eq!(chunk.get_at(5, 5).unwrap(), 42);
-    chunk.set_at(5, 5, 43); // Assuming ChunkTile takes an i32 for this example
+    let _ = chunk.set_at(5, 5, 43); // Assuming ChunkTile takes an i32 for this example
     assert_eq!(chunk.get_at(5, 5).unwrap(), 43);
 }
 
 #[test]
 fn set_and_get_tile() {
     let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-    chunk.set_at(5, 5, 42); // Assuming ChunkTile takes an i32 for this example
+    let _ = chunk.set_at(5, 5, 42); // Assuming ChunkTile takes an i32 for this example
     assert_eq!(chunk.get_at(5, 5).unwrap(), 42);
 }
 
@@ -43,7 +43,7 @@ fn set_and_get_tile() {
 #[should_panic(expected = "Chunk coordinates are out of bounds")]
 fn set_at_out_of_bounds() {
     let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-    chunk.set_at(50, 50, 42); // This should panic
+    let _ = chunk.set_at(50, 50, 42); // This should panic
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn build_complete_chunk(width: usize, height: usize, padding: usize, is_random: 
     for y in y_min..y_max {
         for x in x_min..x_max {
             // println!("({x}, {y})");
-            chunk.set_at(x, y, values_to_use[ix]);
+            let _ = chunk.set_at(x, y, values_to_use[ix]);
             ix += 1;
         }
     }
@@ -144,7 +144,7 @@ fn set_get_set_get_test() {
     let mut chunk: Chunk = Chunk::new(10, 10, 20, 10, 1);
 
     // chunk.init_chunk_tile(9, 9, 99);
-    chunk.set_at(9, 9, 101);
+    let _ = chunk.set_at(9, 9, 101);
 
     {
         let test = chunk.get_at(9, 9);
@@ -153,7 +153,7 @@ fn set_get_set_get_test() {
         println!("{test:?}");
     }
 
-    chunk.set_at(9, 9, 102);
+    let _ = chunk.set_at(9, 9, 102);
     let test = chunk.get_at(9, 9);
 
     println!("{test:?}");

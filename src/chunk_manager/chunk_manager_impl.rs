@@ -13,6 +13,7 @@ pub struct ChunkManager<T> {
     /// The height in tiles of the top level map data.
     pub height: usize,
     pub(crate) owned_values: Vec<T>,
+    pub(crate) out_of_bounds_value_index: TIndex,
 }
 
 impl<T: std::fmt::Debug> ChunkManager<T> {
@@ -79,7 +80,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         println!("reserved space: {}", width * height * layer_count);
 
         // create the layers
-        let layers = ChunkManager::init_layers(
+        let (layers, out_of_bounds_value_index) = ChunkManager::init_layers(
             &mut owned_values,
             source,
             layer_count,
@@ -94,6 +95,41 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             width,
             height,
             owned_values,
+            out_of_bounds_value_index
+        }
+    }
+
+    /// Returns the bounds (including padding) for the specified layer.
+    ///
+    /// # Arguments
+    ///
+    /// * `x`: The requested layer `z`.
+    /// * `include_padding`: `true` to include padding.
+    ///
+    /// Return `Ok(x_min, y_min, x_max, y_max)`.
+    ///
+    /// Use as follows:
+    /// ```no_run
+    /// # use chunk_lib::ChunkManager;
+    /// # let chunk_manager: ChunkManager<u8>;
+    /// // assume an initialized chunk manager with at least 4 layers
+    /// let bounds_result = chunk_manager.get_bounds_for_layer(3, false);
+    /// if let(Ok((x_min, x_max, y_min, y_max))) = bounds_result {
+    ///     for y in y_min..y_max {
+    ///         for x in x_min..x_max {
+    ///             // do something here...
+    ///         }
+    ///     }
+    /// }
+    pub fn get_bounds_for_layer(&self, z: usize, include_padding : bool) -> Result<(isize, isize, isize, isize), &str>{
+        let some_layer = self.layers.get(z);
+        match some_layer {
+            Some(layer_rc) => {
+                let layer_opt = layer_rc.borrow();
+                let layer = layer_opt.as_ref().unwrap();
+                Ok(layer.tile_bounds.get_bound_coords(include_padding))
+            }
+            _ => Err("Layer z coordinate out of bounds"),
         }
     }
 
@@ -114,27 +150,48 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// Returns `Ok(&T)` if the specified coordinates are in bounds, else `Err(&str)`.
     pub fn get_at(&self, x: isize, y: isize, z: usize) -> Result<&T, &str> {
-        self.ensure_layer_chunks_are_complete(x, y, z);
 
         let some_layer = self.layers.get(z);
 
         match some_layer {
             Some(layer_rc) => {
-                //let x = if z == 0 { x } else { x.pow(z as u32) };
-                //let y = if z == 0 { y } else { y.pow(z as u32) };
-                // get the layer - this has to be in two stages to keep the ref
-                // around long enough
+                self.ensure_layer_chunks_are_complete(x, y, z);
+                // the preceding method borrows layers,
+                // so has to run before the rest of the method.
                 let mut layer_opt = layer_rc.borrow_mut();
                 let layer = layer_opt.as_mut().unwrap();
-                // layer.get_at(x, y)
+                // if we are out of bounds, we can short circuit and
+                // return the oob value from the top layer.
+                if x < 0 || y < 0 || x >= layer.tile_bounds.width as isize || y >= layer.tile_bounds.width as isize {
+                    return Ok(&self.owned_values[self.out_of_bounds_value_index]);
+                }
+
                 match layer.get_at(x, y) {
-                    Some(ix) => Ok(&self.owned_values[ix]),
-                    _ => Err("(x, y) coordinates out of bounds"),
+                    Some(ix) => {
+                        // if ix >= self.owned_values.len() {
+                        //     return Ok(&self.owned_values[self.out_of_bounds_value_index]);
+                        // }
+                        Ok(&self.owned_values[ix])
+                    },
+                    _ => {
+                        Err("(x, y) coordinates out of bounds")
+                    },
                 }
             }
             _ => Err("Layer z coordinate out of bounds"),
         }
     }
+
+    // pub(crate) fn get_top_layer_oob_ix(&self) {
+    //     let top_layer_rc = self.layers.get(0)
+    //         .expect("Error! No top layer rc!");
+    //     let top_layer_opt = top_layer_rc.borrow();
+    //     let oob_ix = top_layer_opt.as_ref()
+    //         .expect("Error! No top layer!")
+    //         .out_of_bounds_value_index
+    //         .expect("Error! No top layer oob value");
+    //     return Ok(&self.owned_values[oob_ix])
+    // }
 
     pub(crate) fn ensure_layer_chunks_are_complete(&self, x: isize, y: isize, z: usize) {
         if z == 0 {
@@ -183,9 +240,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         chunk_width_in_tiles: usize,
         chunk_height_in_tiles: usize,
         chunk_padding_in_tiles: usize,
-    ) -> Vec<Rc<RefCell<Option<ChunkLayer>>>> {
+    ) -> (Vec<Rc<RefCell<Option<ChunkLayer>>>>, TIndex) {
         let width_in_chunks = source.width() / chunk_width_in_tiles;
         let height_in_chunks = source.height() / chunk_height_in_tiles;
+        let out_of_bounds_value_index = source.get_default_out_of_bounds_value_index()  as TIndex;
 
         // create the layers
         let mut layers = Vec::with_capacity(layer_count);
@@ -209,7 +267,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                         1,
                         1,
                         0,
-                        Some(source.get_default_out_of_bounds_value_index() as TIndex),
+                        Some(out_of_bounds_value_index),
                     )
                 } else {
                     (
@@ -247,14 +305,14 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             layers.push(Rc::clone(&prev_layer));
         }
 
-        layers
+        (layers, out_of_bounds_value_index)
     }
 
-    pub(crate) fn print_debug_layers(&self) {
+    pub(crate) fn print_debug_layers(&self, with_padding:bool) {
         for layer_rc in &self.layers {
             let mut layer_opt = layer_rc.borrow_mut();
             let layer = layer_opt.as_mut().unwrap();
-            layer.print_debug();
+            layer.print_debug(with_padding);
         }
     }
 
