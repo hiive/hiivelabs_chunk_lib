@@ -21,7 +21,6 @@ pub struct ChunkLayer {
     pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
-    pub(crate) layer_0_out_of_bounds_value_index: Option<TIndex>,
     pub(crate) layer_guid: Uuid,
 }
 
@@ -84,7 +83,6 @@ impl ChunkLayer {
             chunks,
             parent_layer,
             out_of_bounds_value_index,
-            layer_0_out_of_bounds_value_index: None,
         }
     }
 
@@ -425,6 +423,8 @@ impl ChunkLayer {
         // todo - make sure we store sizes in the db
         let encoded = bitcode::encode(chunk);
         let compressed = compress_to_vec(encoded.as_slice(), 6);
+        let _chunk_ix = chunk_ix; // temp
+        let _compressed = compressed;
     }
 
     pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
@@ -554,8 +554,6 @@ impl ChunkLayer {
         println!("(x, y, w, h) = {bb:?}");
 
         let (x_min, y_min, x_max, y_max) = self.tile_bounds.get_bound_coords(with_padding);
-        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) =
-            self.tile_bounds.get_bound_coords(false);
         println!(
             "(x_min, y_min, x_max, y1) = {:?}",
             (x_min, y_min, x_max, y_max)

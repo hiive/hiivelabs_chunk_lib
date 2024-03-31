@@ -20,7 +20,7 @@ pub(crate) fn create_seed(guid: Uuid, x: usize, y: usize) -> [u8; 16] {
     hasher.update(&x_bytes);
     hasher.update(&y_bytes);
     let mut seed = [0u8; 16];
-    let _ = hasher.finalize_variable(&mut seed).unwrap();
+    hasher.finalize_variable(&mut seed).unwrap();
     seed
 }
 
@@ -95,8 +95,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             "layer_chunk_cache_size must be greater than zero (Recommended > 32)"
         );
 
-        let is_new = guid.is_none();
+        let is_new = guid.is_none(); //todo - use this to determine whether to look in storage
+        let _is_new = is_new; // temp
+
         let guid = guid.unwrap_or(Uuid::new_v4());
+
 
         // let's calculate a reasonable starting capacity for the owned_values vector.
         // For the top layer, we can expect the entire capacity to be needed.
@@ -256,18 +259,19 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // we need to traverse down through the layers,
         // ensuring that the chunk(s) referenced by the coordinates
         // are complete in each layer.
-        for layer_id in 1..=z as usize {
+        // for layer_id in 1..=z {
+        for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
             let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
             let layer_opt = layer_rc.borrow();
             let layer = layer_opt.as_ref().unwrap();
 
             // println!("layer [{layer_id}] size: [{}, {}]", layer.bounds.width, layer.bounds.height);
-            let (tx, ty) = coord_map[layer_id];
+            // let (tx, ty) = coord_map[layer_id];
             // println!("coords: ({tx}, {ty})");
             // println!();
-            let (lw, lh) = (layer.tile_bounds.width, layer.tile_bounds.height);
+            // let (lw, lh) = (layer.tile_bounds.width, layer.tile_bounds.height);
             // println!("top level ensure ({tx}, {ty}) layer: {layer_id} : ({lw}, {lh})");
-            layer.ensure_chunk_is_complete(tx, ty);
+            layer.ensure_chunk_is_complete(*tx, *ty);
         }
     }
 
@@ -384,7 +388,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             layer_bounds.iter().enumerate()
         {
             let (x_min, y_min, x_max, y_max) = *print_bounds;
-            let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds;
+            // let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds;
 
             println!();
 

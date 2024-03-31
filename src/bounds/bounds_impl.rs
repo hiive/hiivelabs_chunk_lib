@@ -40,11 +40,13 @@ impl Bounds {
 
         let padded_width = width + 2 * padding;
         let padded_height = height + 2 * padding;
-        if err_on_out_of_bounds {
-            if (adj_x < 0) || (adj_x >= padded_width) || (adj_y < 0) || (adj_y >= padded_height) {
+
+            if err_on_out_of_bounds && ((adj_x < 0) || (adj_x >= padded_width) || (adj_y < 0) || (adj_y >= padded_height)) {
                 return Err("Chunk coordinates are out of bounds");
             }
-        }
+
+
+
         Ok((adj_y * padded_width + adj_x, adj_x, adj_y))
     }
 

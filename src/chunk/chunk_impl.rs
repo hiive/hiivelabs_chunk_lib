@@ -61,11 +61,11 @@ impl Chunk {
     }
 
     fn get_by_index(&self, ix: isize) -> Option<TIndex> {
-        let tile = self.tiles[ix as usize].as_ref();
-
-        match tile {
-            Some(chunk_tile) => Some(*chunk_tile), // Return a reference to the value
-            _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
+        if ix >= self.tiles.len() as isize {
+            None
+        }
+        else {
+            self.tiles[ix as usize]
         }
     }
 
