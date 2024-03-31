@@ -179,8 +179,9 @@ fn test_zero_layer_count_height() {
 
 #[test]
 fn test_can_get_from_non_zero_layer() {
-    let cm = make_test_chunk_manager(8, 8, 4, 32, 8, 8, 1, true);
+    let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true);
 
+    println!("[INITIAL]");
     cm.print_debug_layers();
 
     let c = 2_isize.pow(4);
@@ -188,15 +189,16 @@ fn test_can_get_from_non_zero_layer() {
     let test_val = cm.get_at(c, c, 3).unwrap();
     println!("test_val: {test_val:02X}");
 
+    println!("[INTERIM]");
     cm.print_debug_layers();
 
-    for y in 0..cm.height as isize * 2 {
-        for x in 0..cm.width as isize * 2 {
-            let v1 = cm.get_at(x, y, 1);
-            let v0 = cm.get_at(x / 2, y / 2, 0);
+    for y in 0..cm.height as isize * 8 {
+        for x in 0..cm.width as isize * 8 {
+            let v1 = cm.get_at(x, y, 3);
+            let v0 = cm.get_at(x / 8, y / 8, 0);
             assert_eq!(v1, v0);
         }
     }
-
-
+    println!("[FINAL]");
+    cm.print_debug_layers();
 }

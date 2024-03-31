@@ -18,7 +18,12 @@ impl Bounds {
     /// (0, 0) represents the top-left tile that is not in the padding area.
     /// (-1, -1) would indicate the tile to the top-left of that (assuming that the padding
     /// was at least 1.)
-    pub(crate) fn get_index_for_coords(&self, x: isize, y: isize, assert_on_out_of_bounds: bool) -> (isize, isize, isize) {
+    pub(crate) fn get_index_for_coords(
+        &self,
+        x: isize,
+        y: isize,
+        assert_on_out_of_bounds: bool,
+    ) -> (isize, isize, isize) {
         let padding = self.padding as isize;
         let width = self.width as isize;
         let height = self.height as isize;
@@ -44,9 +49,7 @@ impl Bounds {
         (adj_y * padded_width + adj_x, adj_x, adj_y)
     }
 
-
     pub(crate) fn get_bound_coords(&self, include_padding: bool) -> (isize, isize, isize, isize) {
-
         let padding = if include_padding {
             self.padding as isize
         } else {

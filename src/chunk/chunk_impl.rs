@@ -40,7 +40,12 @@ impl Chunk {
         self.get_by_index(ix)
     }
 
-    pub(crate) fn get_at_or_default(&self, tx: isize, ty: isize, default_value: Option<TIndex>) -> Option<TIndex> {
+    pub(crate) fn get_at_or_default(
+        &self,
+        tx: isize,
+        ty: isize,
+        default_value: Option<TIndex>,
+    ) -> Option<TIndex> {
         let (ix, _, _) = self.bounds.get_index_for_coords(tx, ty, false);
         if !self.bounds.is_in_bounds(ix) {
             // !("Chunk::get_at_or_default: ({tx}, {ty}) Got default value: {default_value:?}");
@@ -49,7 +54,7 @@ impl Chunk {
         self.get_by_index(ix)
     }
 
-    fn get_by_index(&self, ix: isize)-> Option<TIndex> {
+    fn get_by_index(&self, ix: isize) -> Option<TIndex> {
         let tile = self.tiles[ix as usize].as_ref();
 
         match tile {

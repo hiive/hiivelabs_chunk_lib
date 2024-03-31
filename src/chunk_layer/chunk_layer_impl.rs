@@ -56,7 +56,6 @@ impl ChunkLayer {
         //     assert!(default_out_of_bounds_value.is_none(), "Default value for layer >0");
         // }
 
-
         // let chunk_store = World::new();
         Self {
             layer_id,
@@ -199,14 +198,14 @@ impl ChunkLayer {
     pub(crate) fn is_chunk_border_coord(&self, tx: isize, ty: isize) -> (bool, bool) {
         (
             // has to be inside outer bounds, and also within padding between chunks
-            tx < 0 ||
-                (tx > 0
-                && tx <= self.tile_bounds.width as isize
-                && tx % self.chunk_width_in_tiles as isize == 0),
-            ty < 0 ||
-                (ty > 0
-                && ty <= self.tile_bounds.height as isize
-                && ty % self.chunk_height_in_tiles as isize == 0),
+            tx < 0
+                || (tx > 0
+                    && tx <= self.tile_bounds.width as isize
+                    && tx % self.chunk_width_in_tiles as isize == 0),
+            ty < 0
+                || (ty > 0
+                    && ty <= self.tile_bounds.height as isize
+                    && ty % self.chunk_height_in_tiles as isize == 0),
         )
     }
 
@@ -441,13 +440,11 @@ impl ChunkLayer {
     }
 
     pub fn get_at(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
-
         let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(true);
         if tx < min_x || tx >= max_x || ty < min_y || ty >= max_y {
             // short circuit
             return self.default_out_of_bounds_value;
         }
-
 
         let opt_chunk_idx = self.get_queryable_chunk_index(tx, ty);
         match opt_chunk_idx {
@@ -459,8 +456,8 @@ impl ChunkLayer {
                     Some(chunk) => chunk.get_at(tx, ty),
                     _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
                 }
-            },
-            None => None
+            }
+            None => None,
         }
     }
 
@@ -479,13 +476,13 @@ impl ChunkLayer {
                 match chunk {
                     Some(chunk) => {
                         chunk.get_at_or_default(tx, ty, self.default_out_of_bounds_value)
-                    },
+                    }
                     _ => {
                         // println!("Got default value 2: {:?}", self.default_out_of_bounds_value);
                         self.default_out_of_bounds_value
-                    },
+                    }
                 }
-            },
+            }
             None => {
                 // println!("Got default value 3: {:?}", self.default_out_of_bounds_value);
                 self.default_out_of_bounds_value
@@ -493,7 +490,7 @@ impl ChunkLayer {
         }
     }
 
-    fn get_queryable_chunk_index(&mut self, tx: isize, ty: isize) -> Option<isize>{
+    fn get_queryable_chunk_index(&mut self, tx: isize, ty: isize) -> Option<isize> {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         if chunk_ixs.is_empty() {
             // println!("NO CHUNKS FOUND FOR: ({tx}, {ty}), {} : (w:{}, h:{})",
@@ -506,7 +503,6 @@ impl ChunkLayer {
         let (chunk_ix, _) = chunk_ixs[0];
         Some(chunk_ix)
     }
-
 
     /*
     pub fn get_chunk_at(&'a self, x: isize, y: isize) -> Option<&'a Chunk<T>> {
@@ -548,18 +544,18 @@ impl ChunkLayer {
                 let (xb, yb) = self.is_chunk_border_coord(x, y);
                 match ov {
                     None => {
-                        if  xb || yb {
+                        if xb || yb {
                             print!(".. ");
+                        } else {
+                            print!("-- ");
                         }
-                        else { print!("-- "); }
                     }
                     Some(v) => {
                         let v = (v % 256) as u8;
 
-                        if  xb || yb {
+                        if xb || yb {
                             print!("{v:02x} ");
-                        }
-                        else {
+                        } else {
                             print!("{v:02X} ");
                         }
                     }
@@ -570,9 +566,22 @@ impl ChunkLayer {
         println!();
     }
 
+    pub(crate) fn convert_to_parent_layer_tile_coordinates(
+        &self,
+        tx: isize,
+        ty: isize,
+    ) -> (isize, isize) {
+        // the source coordinates in the parent layer
+        // will be half of the destination coordinates,
+        // as the parent layer is half the size in each dimension
+        (tx / 2, ty / 2)
+    }
+
     pub(crate) fn ensure_chunk_is_complete(&self, tx: isize, ty: isize) {
         if self.layer_id == 0 {
             // nothing to do.
+            // layer zero is always considered complete as it's
+            // initialized from the user-provided map data.
             return;
         }
         /*
@@ -583,19 +592,34 @@ impl ChunkLayer {
         TODO: Also, there seems to be something squirrely in the relative layer coordinate calculations, so I need to add tests.
          */
 
+        // In order to ensure a chunk in this layer is complete,
+        // the source chunks in the chain of parent layers also need to be complete.
+        // note that there may be more than one source chunk in the parent layer,
+        // depending on padding boundaries coinciding in the layer chain.
 
+        // get the chunk indices fot the specified tile coordinates,
+        // There may be more than one chunk to complete if (tx, ty) is within the padding
+        // boundary.
+        // and make sure the chunk(s) exists.
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
-        // let value_ref = self.owned_values.last().unwrap();
-        for (chunk_ix, _) in chunk_ixs {
-            let mut chunks = self.chunks.borrow_mut();
-            let chunk = chunks.get(&chunk_ix).unwrap(); // we know the chunk exists.
+        // iterate through the chunks.
+        let mut chunks = self.chunks.borrow_mut();
+        // println!();
+        for (chunk_ix, _) in &chunk_ixs {
+            // we know the chunk exists, because we ensured it earlier.
+            let chunk = chunks.get(chunk_ix).unwrap();
             if !chunk.is_complete() {
-                // we need to complete the chunk.
+                // the chunk has unset tiles, so let's complete it.
+                // todo: see if it's in the disk cache
 
                 // for initial purposes, we are just going to do a simple doubling up
                 // of the parent.
+
+                // get the parent layer.
+                // it has to be mutable, because we are accessing chunks in an lru cache which
+                // can change based on retrieval.
                 let mut parent_layer_ref = self.parent_layer.borrow_mut();
                 let parent_layer: &mut ChunkLayer = parent_layer_ref
                     .as_mut()
@@ -603,10 +627,10 @@ impl ChunkLayer {
 
                 // parent_layer.print_debug();
 
-                let (dest_x0,
-                    dest_y0,
-                    dest_x1,
-                    dest_y1) = chunk.bounds.get_bound_coords(true);
+                // get the layer relative tile coordinates for the area that needs
+                // to be set in this chunk
+                let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
+                    chunk.bounds.get_bound_coords(true);
 
                 // let layer_id = self.layer_id;
                 // println!("\tLayer [{layer_id}]:");
@@ -616,59 +640,77 @@ impl ChunkLayer {
                 //     chunk.bounds
                 // );
 
+                // loop over the layer tile coordinates
+                for this_layer_y in this_layer_y0..this_layer_y1 {
+                    for this_layer_x in this_layer_x0..this_layer_x1 {
+                        // the parent coordinates in the parent layer
+                        let (parent_x, parent_y) =
+                            self.convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
 
-                for dy in dest_y0..dest_y1 {
-                    for dx in dest_x0..dest_x1 {
-                        let (sx, sy) = (dx/2, dy/2);
-                        let src_tile = {
-                            // println!("dest coords: ({dx}, {dy}), source coords: ({sx}, {sy})");
-                            match parent_layer.get_at_or_default(sx, sy) {
+                        // get the parent tile
+                        let parent_tile = {
+                            // check if the parent tile is set.
+                            // (nb. only the top layer has a default tile value set).
+                            match parent_layer.get_at_or_default(parent_x, parent_y) {
                                 None => {
-                                    parent_layer.ensure_chunk_is_complete(sx, sy);
+                                    // the source layer tile is unset
+                                    // we need to call this method recursively
+                                    // for the parent layer at the parent coordinates
+                                    parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
 
-                                    let parent_id = parent_layer.layer_id;
+                                    // let parent_id = parent_layer.layer_id;
                                     // println!("ERROR: retrieving parent [{parent_id}] tile at ({sx}, {sy})");
 
-                                    let pv = parent_layer.get_at(sx, sy)
-                                        .expect("Parent chunk tile is not set.");
+                                    // get the parent tile again. It should be set this time.
+                                    //
+                                    parent_layer
+                                        .get_at(parent_x, parent_y)
+                                        .expect("Parent chunk tile is not set.")
 
                                     // println!("Calculated: {pv:02X}");
-                                    pv
-
+                                    // pv
                                 }
-                                Some(t) => { t }
+                                Some(t) => t,
                             }
                         };
+                        // println!(
+                        //     "\tGetting layer [{}]: ({parent_x}, {parent_y}) -> {parent_tile:02X}",
+                        //     parent_layer.layer_id
+                        // );
+                        // println!("\tSetting layer [{}], Chunk [{chunk_ix}] ({}): ({this_layer_x}, {this_layer_y}) -> {parent_tile:02X}",
+                        //          self.layer_id, chunk_ixs.len()
+                        // );
                         //
                         // this is to help debug
-                        let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                            chunk.set_at(dx, dy, src_tile);
-                        }));
+                        //let result = panic::catch_unwind(AssertUnwindSafe(|| {
+                        chunk.set_at(this_layer_x, this_layer_y, parent_tile);
+                        // self.set_at(this_layer_x, this_layer_y, parent_tile);
+                        //}));
 
                         // // debug
-                        #[cfg(debug_assertions)]
-                        {
-                            match result {
-                                Ok(_) => {},
-                                Err(payload) => {
-                                    // Perform any necessary cleanup or logging here
-                                    let bb = &chunk.bounds;
-                                    let layer_id = self.layer_id;
-
-                                    // println!("\tLayer [{layer_id}]: trying to set ({dx}, {dy}) on chunk with bounds: {bb:?}");
-                                    // println!(
-                                    //     "\t\tBound_coords: {:?}",
-                                    //     (dest_x0, dest_y0, dest_x1, dest_y1)
-                                    // );
-
-                                    let pb = &parent_layer.tile_bounds;
-                                    // println!("from parent [{}] ({sx}, {sy}) with bounds: {pb:?}", layer_id - 1);
-
-                                    // Then rethrow the panic
-                                    panic::resume_unwind(payload);
-                                }
-                            }
-                        }
+                        // #[cfg(debug_assertions)]
+                        // {
+                        //     match result {
+                        //         Ok(_) => {},
+                        //         Err(payload) => {
+                        //             // Perform any necessary cleanup or logging here
+                        //             let bb = &chunk.bounds;
+                        //             let layer_id = self.layer_id;
+                        //
+                        //             // println!("\tLayer [{layer_id}]: trying to set ({dx}, {dy}) on chunk with bounds: {bb:?}");
+                        //             // println!(
+                        //             //     "\t\tBound_coords: {:?}",
+                        //             //     (dest_x0, dest_y0, dest_x1, dest_y1)
+                        //             // );
+                        //
+                        //             let pb = &parent_layer.tile_bounds;
+                        //             // println!("from parent [{}] ({sx}, {sy}) with bounds: {pb:?}", layer_id - 1);
+                        //
+                        //             // Then rethrow the panic
+                        //             panic::resume_unwind(payload);
+                        //         }
+                        //     }
+                        // }
                         // // end debug
                     }
                 }

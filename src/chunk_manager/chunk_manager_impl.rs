@@ -13,7 +13,6 @@ pub struct ChunkManager<T> {
     /// The height in tiles of the top level map data.
     pub height: usize,
     pub(crate) owned_values: Vec<T>,
-
 }
 
 impl<T: std::fmt::Debug> ChunkManager<T> {
@@ -95,7 +94,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             width,
             height,
             owned_values,
-
         }
     }
 
@@ -211,7 +209,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                         1,
                         1,
                         0,
-                        Some(source.get_default_out_of_bounds_value_index() as TIndex))
+                        Some(source.get_default_out_of_bounds_value_index() as TIndex),
+                    )
                 } else {
                     (
                         f * width_in_chunks,
@@ -219,7 +218,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                         chunk_width_in_tiles,
                         chunk_height_in_tiles,
                         chunk_padding_in_tiles,
-                        None
+                        None,
                     )
                 }
             };
@@ -233,7 +232,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 layer_chunk_padding_in_tiles,
                 layer_chunk_width,
                 layer_chunk_height,
-                layer_default_oob_value
+                layer_default_oob_value,
             );
 
             // if we're on the top layer, populate it with the map data
