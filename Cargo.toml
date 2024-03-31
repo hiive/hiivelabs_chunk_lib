@@ -7,13 +7,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# serde = { version = "1.0.197", features = ["derive"]}
-smallvec = { version = "1.13.1", features = ["serde"] }
+smallvec = { version = "1.13.1"}
 hecs = "0.10.4"
-rand = "0.8.5"
-# serde = {  version = "1.0.197", features = ["rc", "std", "derive"] }
+rand = { version = "0.8.5", features = ["std", "small_rng", "std_rng"] }
 schnellru = "0.2.1"
-bitcode = "0.6.0"
+bitcode = { version = "0.6.0" }
 miniz_oxide = "0.7.2"
 rusqlite = { version = "0.31.0", features = ["bundled"] }
+uuid = { version = "1.8.0", features = ["v4"] }
+blake2 = { version = "0.10.6" }
+rand_core = "0.6.4"
 

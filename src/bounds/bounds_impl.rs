@@ -41,8 +41,7 @@ impl Bounds {
         let padded_width = width + 2 * padding;
         let padded_height = height + 2 * padding;
         if err_on_out_of_bounds {
-            if(adj_x < 0) || (adj_x >= padded_width) || (adj_y < 0) || (adj_y >= padded_height)
-            {
+            if (adj_x < 0) || (adj_x >= padded_width) || (adj_y < 0) || (adj_y >= padded_height) {
                 return Err("Chunk coordinates are out of bounds");
             }
         }
@@ -68,7 +67,7 @@ impl Bounds {
         (min_x, min_y, max_x, max_y)
     }
 
-    pub(crate) fn is_coords_in_bounds(&self, tx: isize, ty:isize, with_padding:bool) -> bool {
+    pub(crate) fn is_coords_in_bounds(&self, tx: isize, ty: isize, with_padding: bool) -> bool {
         let (min_x, min_y, max_x, max_y) = self.get_bound_coords(with_padding);
         tx >= min_x && tx < max_x && ty >= min_y && ty < max_y
     }

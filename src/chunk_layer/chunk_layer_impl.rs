@@ -4,6 +4,7 @@ use std::rc::Rc;
 use miniz_oxide::deflate::compress_to_vec;
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
+use uuid::Uuid;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
@@ -21,6 +22,7 @@ pub struct ChunkLayer {
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
     pub(crate) layer_0_out_of_bounds_value_index: Option<TIndex>,
+    pub(crate) layer_guid: Uuid,
 }
 
 impl ChunkLayer {
@@ -31,6 +33,7 @@ impl ChunkLayer {
     pub fn new(
         parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
         layer_id: usize,
+        layer_guid: Uuid,
         layer_chunk_lru_cache_size: u32,
         width_in_chunks: usize,
         height_in_chunks: usize,
@@ -60,6 +63,7 @@ impl ChunkLayer {
         // let chunk_store = World::new();
         Self {
             layer_id,
+            layer_guid,
             layer_chunk_lru_cache_size,
             chunk_bounds: Bounds {
                 x: 0,
@@ -423,7 +427,7 @@ impl ChunkLayer {
         let compressed = compress_to_vec(encoded.as_slice(), 6);
     }
 
-    pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str>{
+    pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
         // /*
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
@@ -445,16 +449,17 @@ impl ChunkLayer {
         }
         if error_count == 0 {
             Ok(())
-        }
-        else {
+        } else {
             Err("Layer coordinates out of bounds")
         }
     }
 
     pub fn get_at(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
         // let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(false);
-        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = self.tile_bounds.get_bound_coords(false);
-        let oob = tx < cropped_x_min || tx >= cropped_x_max || ty < cropped_y_min || ty >= cropped_y_max;
+        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) =
+            self.tile_bounds.get_bound_coords(false);
+        let oob =
+            tx < cropped_x_min || tx >= cropped_x_max || ty < cropped_y_min || ty >= cropped_y_max;
         if oob {
             // short circuit
             return self.out_of_bounds_value_index;
@@ -488,9 +493,7 @@ impl ChunkLayer {
                 let chunk = chunks.get(&chunk_idx);
 
                 match chunk {
-                    Some(chunk) => {
-                        chunk.get_at_or_default(tx, ty, self.out_of_bounds_value_index)
-                    }
+                    Some(chunk) => chunk.get_at_or_default(tx, ty, self.out_of_bounds_value_index),
                     _ => {
                         // println!("Got default value 2: {:?}", self.out_of_bounds_value_index);
                         self.out_of_bounds_value_index
@@ -536,9 +539,10 @@ impl ChunkLayer {
 
     pub(crate) fn print_debug(&mut self, with_padding: bool) {
         let id = self.layer_id;
+        let guid = self.layer_guid;
         println!();
 
-        println!("Layer: [{id}] - INDICES");
+        println!("Layer: [{id}]:[{guid}] - INDICES");
         println!();
 
         let bb = (
@@ -550,8 +554,12 @@ impl ChunkLayer {
         println!("(x, y, w, h) = {bb:?}");
 
         let (x_min, y_min, x_max, y_max) = self.tile_bounds.get_bound_coords(with_padding);
-        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = self.tile_bounds.get_bound_coords(false);
-        println!("(x_min, y_min, x_max, y1) = {:?}", (x_min, y_min, x_max, y_max));
+        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) =
+            self.tile_bounds.get_bound_coords(false);
+        println!(
+            "(x_min, y_min, x_max, y1) = {:?}",
+            (x_min, y_min, x_max, y_max)
+        );
 
         for y in y_min..y_max {
             for x in x_min..x_max {
@@ -661,8 +669,8 @@ impl ChunkLayer {
                 for this_layer_y in this_layer_y0..this_layer_y1 {
                     for this_layer_x in this_layer_x0..this_layer_x1 {
                         // the parent coordinates in the parent layer
-                        let (parent_x, parent_y) =
-                            self.convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
+                        let (parent_x, parent_y) = self
+                            .convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
 
                         // get the parent tile
                         let parent_tile = {

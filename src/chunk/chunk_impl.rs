@@ -38,9 +38,7 @@ impl Chunk {
     pub(crate) fn get_at(&self, tx: isize, ty: isize) -> Option<TIndex> {
         let result = self.bounds.get_index_for_coords(tx, ty, true);
         match result {
-            Ok((ix, _, _)) => {
-                self.get_by_index(ix)
-            }
+            Ok((ix, _, _)) => self.get_by_index(ix),
             Err(msg) => {
                 panic!("{msg}")
             }
@@ -53,11 +51,10 @@ impl Chunk {
         ty: isize,
         default_value: Option<TIndex>,
     ) -> Option<TIndex> {
-        if let Ok((ix, _, _)) = self.bounds.get_index_for_coords(tx, ty, false)
-        {
+        if let Ok((ix, _, _)) = self.bounds.get_index_for_coords(tx, ty, false) {
             if self.bounds.is_index_in_bounds(ix) {
                 // !("Chunk::get_at_or_default: ({tx}, {ty}) Got default value: {default_value:?}");
-                return self.get_by_index(ix)
+                return self.get_by_index(ix);
             }
         }
         default_value
@@ -83,7 +80,7 @@ impl Chunk {
         none_count
     }
 
-    pub(crate) fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str>{
+    pub(crate) fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
         // #[cfg(debug_assertions)]
         // println!("Chunk::set_at: get_index_for_coords: ({tx}, {ty}) -> ({ix})");
 
@@ -93,9 +90,7 @@ impl Chunk {
                 self.tiles[ix as usize] = Some(value);
                 Ok(())
             }
-            Err(msg) => {
-                Err(msg)
-            }
+            Err(msg) => Err(msg),
         }
     }
 }

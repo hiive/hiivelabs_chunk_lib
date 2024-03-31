@@ -2,9 +2,18 @@ use crate::ChunkManager;
 use crate::TileMapDataSource;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use std::time::Instant;
 use std::fmt;
 use std::fmt::Formatter;
+use std::time::Instant;
+use uuid::Uuid;
+
+const RED: &str = "\x1b[31m";
+const GREEN: &str = "\x1b[32m";
+const BRIGHT_GREEN: &str = "\x1b[92m";
+const YELLOW: &str = "\x1b[33m";
+const BLUE: &str = "\x1b[34m";
+const BRIGHT_BLUE: &str = "\x1b[94m";
+const DEFAULT: &str = "\x1b[0m";
 
 /// A wrapper around `u8` that implements `Debug` to display the value in hexadecimal.
 #[derive(Clone)]
@@ -12,14 +21,28 @@ pub(crate) struct HexU8(u8);
 
 /// Implement `Debug` for `HexU8` to format the inner `u8` value as hexadecimal.
 impl fmt::Debug for HexU8 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:02x}", self.0)
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let color = if self.0 < 128 {
+            BLUE
+        } else if self.0 < 255 {
+            GREEN
+        } else {
+            BRIGHT_GREEN
+        };
+        write!(f, "{color}{:02x}{DEFAULT}", self.0)
     }
 }
 
 impl fmt::UpperHex for HexU8 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:02X}", self.0)
+        let color = if self.0 < 128 {
+            BRIGHT_BLUE
+        } else if self.0 < 255 {
+            BRIGHT_GREEN
+        } else {
+            BRIGHT_GREEN
+        };
+        write!(f, "{color}{:02X}{DEFAULT}", self.0)
     }
 }
 
@@ -76,8 +99,9 @@ impl TestMap {
                 data[oob_index] = HexU8(0xFF);
                 println!("OOB VALUE: {:?}", data[oob_index]);
                 oob_index
+            } else {
+                0
             }
-            else { 0 }
         };
 
         Self {
@@ -103,6 +127,7 @@ pub(crate) fn make_test_chunk_manager(
     chunk_height: usize,
     chunk_padding_in_tiles: usize,
     use_random_map: bool,
+    guid: Option<Uuid>,
 ) -> ChunkManager<HexU8> {
     let start = Instant::now(); // Start timing
     let test_map = Box::new(TestMap::new(width, height, use_random_map));
@@ -117,6 +142,7 @@ pub(crate) fn make_test_chunk_manager(
         chunk_width,
         chunk_height,
         chunk_padding_in_tiles,
+        guid,
     );
 
     let duration = start.elapsed();
@@ -144,6 +170,7 @@ fn test_init_cm_with_params(
         chunk_height,
         chunk_padding_in_tiles,
         use_random_map,
+        None,
     );
     assert_eq!(cm.width, width);
     assert_eq!(cm.height, height);
@@ -171,48 +198,49 @@ fn test_large_init() {
 #[test]
 #[should_panic(expected = "layer_chunk_cache_size must be greater than zero (Recommended > 32)")]
 fn test_zero_lru_size() {
-    let cm = make_test_chunk_manager(10, 10, 1, 0, 5, 5, 0, false);
+    let cm = make_test_chunk_manager(12, 12, 1, 0, 6, 6, 0, false, None);
 }
 
 #[test]
 #[should_panic(expected = "width and height must both be greater than zero")]
 fn test_zero_width() {
-    let cm = make_test_chunk_manager(0, 10, 1, 0, 5, 5, 0, false);
+    let cm = make_test_chunk_manager(0, 10, 1, 0, 5, 5, 0, false, None);
 }
 
 #[test]
 #[should_panic(expected = "width and height must both be greater than zero")]
 fn test_zero_height() {
-    let cm = make_test_chunk_manager(10, 0, 1, 0, 5, 5, 0, false);
+    let cm = make_test_chunk_manager(10, 0, 1, 0, 5, 5, 0, false, None);
 }
 
 #[test]
 #[should_panic(expected = "width and height must both be greater than zero")]
 fn test_zero_width_and_height() {
-    let cm = make_test_chunk_manager(0, 0, 1, 0, 5, 5, 0, false);
+    let cm = make_test_chunk_manager(0, 0, 1, 0, 5, 5, 0, false, None);
 }
 
 #[test]
 #[should_panic(expected = "chunk_width and chunk_height must both be greater than zero")]
 fn test_zero_chunk_width() {
-    let cm = make_test_chunk_manager(10, 10, 1, 32, 0, 5, 0, false);
+    let cm = make_test_chunk_manager(10, 10, 1, 32, 0, 5, 0, false, None);
 }
 
 #[test]
 #[should_panic(expected = "chunk_width and chunk_height must both be greater than zero")]
 fn test_zero_chunk_height() {
-    let cm = make_test_chunk_manager(10, 20, 1, 32, 5, 0, 0, false);
+    let cm = make_test_chunk_manager(10, 20, 1, 32, 6, 0, 0, false, None);
 }
 
 #[test]
 #[should_panic(expected = "layer_count must be greater than zero")]
 fn test_zero_layer_count_height() {
-    let cm = make_test_chunk_manager(10, 10, 0, 32, 5, 5, 0, false);
+    let cm = make_test_chunk_manager(12, 12, 0, 32, 6, 6, 0, false, None);
 }
 
 #[test]
 fn test_can_get_from_non_zero_layer() {
-    let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true);
+    let guid = Some(Uuid::parse_str("a375ab7d-8219-4416-a927-c94511a3689b").unwrap());
+    let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
 
     println!("[INITIAL]");
     cm.print_debug_layer_indices(false);
@@ -229,22 +257,28 @@ fn test_can_get_from_non_zero_layer() {
         println!("Layer {l} bounds: {bounds:?}");
     }
 
-    let padded_bounds_3 = cm.get_bounds_for_layer(3, true)
+    let padded_bounds_3 = cm
+        .get_bounds_for_layer(3, true)
         .expect("Layer bounds error");
 
-    let cropped_bounds_3 = cm.get_bounds_for_layer(3, false)
+    let cropped_bounds_3 = cm
+        .get_bounds_for_layer(3, false)
         .expect("Layer bounds error");
 
     let (padded_x_min, padded_y_min, padded_x_max, padded_y_max) = padded_bounds_3;
     let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds_3;
     println!("Layer 3 padded bounds: {padded_bounds_3:?}");
     println!("Layer 3 cropped bounds: {padded_bounds_3:?}");
-    println!("Prior bounds: (0, 0, {}, {})", cm.width as isize * 8, cm.height as isize * 8);
+    println!(
+        "Prior bounds: (0, 0, {}, {})",
+        cm.width as isize * 8,
+        cm.height as isize * 8
+    );
     // return;
     for y in padded_y_min..padded_y_max {
         for x in padded_x_min..padded_x_max {
             let v3 = cm.get_at(x, y, 3).unwrap();
-            let (x0, y0) = (x/8, y/8);
+            let (x0, y0) = (x / 8, y / 8);
             let v0 = cm.get_at(x0, y0, 0).unwrap();
             let v3s = std::format!("{v3:02X}");
             let v0s = std::format!("{v0:02X}");

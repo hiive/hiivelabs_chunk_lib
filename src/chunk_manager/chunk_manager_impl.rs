@@ -1,8 +1,28 @@
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::tilemap_datasource::TileMapDataSource;
+use blake2::digest::{Update, VariableOutput};
+use blake2::Blake2bVar;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use uuid::Uuid;
+
+// todo - maybe move this.
+pub(crate) fn create_seed(guid: Uuid, x: usize, y: usize) -> [u8; 16] {
+    // Convert the GUID and usize values to byte arrays
+    let uuid_bytes = guid.as_bytes();
+    let x_bytes = x.to_ne_bytes();
+    let y_bytes = y.to_ne_bytes();
+
+    // Create a Blake2b512 hasher and input the GUID, x, and y bytes
+    let mut hasher = Blake2bVar::new(16).unwrap();
+    hasher.update(uuid_bytes);
+    hasher.update(&x_bytes);
+    hasher.update(&y_bytes);
+    let mut seed = [0u8; 16];
+    let _ = hasher.finalize_variable(&mut seed).unwrap();
+    seed
+}
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
@@ -14,6 +34,8 @@ pub struct ChunkManager<T> {
     pub height: usize,
     pub(crate) owned_values: Vec<T>,
     pub(crate) out_of_bounds_value_index: TIndex,
+    pub guid: Uuid,
+    // pub(crate) rnd : SmallRng
 }
 
 impl<T: std::fmt::Debug> ChunkManager<T> {
@@ -37,6 +59,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///                  The best value to use is `1`, as it minimizes edge artifacts
     ///                  with the current procedural generation method.
     ///
+    /// * `guid`: The guid for this chunk manager. If none is provided, one will be generated.
+    ///           This is used as an identifier for serialization/deserialization.
     /// Returns: `ChunkManager<T>` initialized with the `source` data.
     pub fn new(
         source: Box<dyn TileMapDataSource<T>>,
@@ -45,6 +69,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         chunk_width_in_tiles: usize,
         chunk_height_in_tiles: usize,
         chunk_padding_in_tiles: usize,
+        guid: Option<Uuid>,
     ) -> Self {
         let width = source.width();
         let height = source.height();
@@ -53,18 +78,25 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             "width and height must both be greater than zero"
         );
         assert!(
-            chunk_width_in_tiles > 0 && chunk_height_in_tiles > 0,
-            "chunk_width and chunk_height must both be greater than zero"
+            chunk_width_in_tiles > 0
+                && chunk_height_in_tiles > 0
+                && chunk_width_in_tiles % 2 == 0
+                && chunk_height_in_tiles % 2 == 0,
+            "chunk_width and chunk_height must both be greater than zero, and even"
         );
         assert!(
             width % chunk_width_in_tiles == 0 && height % chunk_height_in_tiles == 0,
             "width/height must be exactly divisible by chunk width/height"
         );
+
         assert!(layer_count > 0, "layer_count must be greater than zero");
         assert!(
             layer_chunk_cache_size > 0,
             "layer_chunk_cache_size must be greater than zero (Recommended > 32)"
         );
+
+        let is_new = guid.is_none();
+        let guid = guid.unwrap_or(Uuid::new_v4());
 
         // let's calculate a reasonable starting capacity for the owned_values vector.
         // For the top layer, we can expect the entire capacity to be needed.
@@ -81,6 +113,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // create the layers
         let (layers, out_of_bounds_value_index) = ChunkManager::init_layers(
+            &guid,
             &mut owned_values,
             source,
             layer_count,
@@ -95,7 +128,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             width,
             height,
             owned_values,
-            out_of_bounds_value_index
+            out_of_bounds_value_index,
+            guid,
         }
     }
 
@@ -121,7 +155,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///         }
     ///     }
     /// }
-    pub fn get_bounds_for_layer(&self, z: usize, include_padding : bool) -> Result<(isize, isize, isize, isize), &str>{
+    pub fn get_bounds_for_layer(
+        &self,
+        z: usize,
+        include_padding: bool,
+    ) -> Result<(isize, isize, isize, isize), &str> {
         let some_layer = self.layers.get(z);
         match some_layer {
             Some(layer_rc) => {
@@ -150,7 +188,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// Returns `Ok(&T)` if the specified coordinates are in bounds, else `Err(&str)`.
     pub fn get_at(&self, x: isize, y: isize, z: usize) -> Result<&T, &str> {
-
         let some_layer = self.layers.get(z);
 
         match some_layer {
@@ -162,7 +199,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 let layer = layer_opt.as_mut().unwrap();
                 // if we are out of bounds, we can short circuit and
                 // return the oob value from the top layer.
-                if x < 0 || y < 0 || x >= layer.tile_bounds.width as isize || y >= layer.tile_bounds.width as isize {
+                if x < 0
+                    || y < 0
+                    || x >= layer.tile_bounds.width as isize
+                    || y >= layer.tile_bounds.width as isize
+                {
                     return Ok(&self.owned_values[self.out_of_bounds_value_index]);
                 }
 
@@ -172,10 +213,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                         //     return Ok(&self.owned_values[self.out_of_bounds_value_index]);
                         // }
                         Ok(&self.owned_values[ix])
-                    },
-                    _ => {
-                        Err("(x, y) coordinates out of bounds")
-                    },
+                    }
+                    _ => Err("(x, y) coordinates out of bounds"),
                 }
             }
             _ => Err("Layer z coordinate out of bounds"),
@@ -233,6 +272,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     fn init_layers(
+        guid: &Uuid,
         owned_values: &mut Vec<T>,
         mut source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
@@ -243,13 +283,14 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ) -> (Vec<Rc<RefCell<Option<ChunkLayer>>>>, TIndex) {
         let width_in_chunks = source.width() / chunk_width_in_tiles;
         let height_in_chunks = source.height() / chunk_height_in_tiles;
-        let out_of_bounds_value_index = source.get_default_out_of_bounds_value_index()  as TIndex;
+        let out_of_bounds_value_index = source.get_default_out_of_bounds_value_index() as TIndex;
 
         // create the layers
         let mut layers = Vec::with_capacity(layer_count);
         let mut prev_layer = Rc::new(RefCell::new(None));
         for layer_id in 0..layer_count {
             // each layer is double the width/height of the previous one.
+            let layer_guid = Uuid::from_bytes(create_seed(*guid, layer_id, 0));
             let f = 2_usize.pow(layer_id as u32);
 
             let (
@@ -284,6 +325,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             let mut current_layer = ChunkLayer::new(
                 Rc::clone(&prev_layer),
                 layer_id,
+                layer_guid,
                 layer_chunk_cache_size,
                 layer_width_in_chunks,
                 layer_height_in_chunks,
@@ -308,7 +350,9 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         (layers, out_of_bounds_value_index)
     }
 
-    pub(crate) fn print_debug_layer_indices(&self, with_padding:bool) {
+    pub(crate) fn print_debug_layer_indices(&self, with_padding: bool) {
+        println!("ChunkManager [{}]", self.guid);
+
         for layer_rc in &self.layers {
             let mut layer_opt = layer_rc.borrow_mut();
             let layer = layer_opt.as_mut().unwrap();
@@ -322,7 +366,9 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         }
     }
 
-    pub(crate) fn print_debug_layer_values(&self, with_padding:bool) {
+    pub(crate) fn print_debug_layer_values(&self, with_padding: bool) {
+        println!("ChunkManager: [{}]", self.guid);
+
         let layer_bounds = {
             let mut lbs = Vec::with_capacity(self.layers.len());
             for layer_rc in &self.layers {
@@ -330,17 +376,19 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 let layer = layer_opt.as_mut().unwrap();
                 let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
                 let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
-                lbs.push((print_bounds, cropped_bounds));
+                lbs.push((print_bounds, cropped_bounds, layer.layer_guid));
             }
             lbs
         };
-        for (layer_id, (print_bounds, cropped_bounds)) in layer_bounds.iter().enumerate() {
+        for (layer_id, (print_bounds, cropped_bounds, layer_guid)) in
+            layer_bounds.iter().enumerate()
+        {
             let (x_min, y_min, x_max, y_max) = *print_bounds;
             let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds;
 
             println!();
 
-            println!("Layer: [{layer_id}] - VALUES");
+            println!("Layer: [{layer_id}]:[{layer_guid}] - VALUES");
             println!();
 
             for y in y_min..y_max {
@@ -360,7 +408,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             println!();
         }
     }
-
 
     fn populate_top_layer_from_source(
         owned_values: &mut Vec<T>,

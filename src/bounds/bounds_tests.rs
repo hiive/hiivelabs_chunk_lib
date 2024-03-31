@@ -75,7 +75,7 @@ fn test_is_in_bounds_limits() {
         padding: 1, // Adjusted padding to ensure the logic in `is_index_in_bounds` is correct.
     };
 
-    let result= bounds.get_index_for_coords(0, 0, false);
+    let result = bounds.get_index_for_coords(0, 0, false);
     match result {
         Ok((ix, _, _)) => {
             assert!(bounds.is_index_in_bounds(ix));
@@ -161,13 +161,12 @@ fn test_get_index_for_coords_with_padding() {
             // This example assumes (x, y) coordinates are transformed relative to padding.
             assert_eq!(x, 5); // Adjusted x coordinate within padding
             assert_eq!(y, 5); // Adjusted y coordinate within padding
-            // Index calculation will depend on the specific layout logic of your chunks
+                              // Index calculation will depend on the specific layout logic of your chunks
         }
         Err(msg) => {
             panic!("{msg}")
         }
     }
-
 }
 
 #[test]
@@ -192,7 +191,6 @@ fn coordinates_within_padding_are_in_bounds() {
         }
     }
 
-
     let result = bounds.get_index_for_coords(11, 11, false);
     match result {
         Ok(within_padding_bottom_right) => {
@@ -202,7 +200,6 @@ fn coordinates_within_padding_are_in_bounds() {
             panic!("{msg}")
         }
     }
-
 }
 
 #[test]
@@ -226,7 +223,6 @@ fn coordinates_outside_padding_are_out_of_bounds() {
         }
     }
 
-
     let result = bounds.get_index_for_coords(16, 16, false);
     match result {
         Ok(outside_padding_bottom_right) => {
@@ -236,5 +232,4 @@ fn coordinates_outside_padding_are_out_of_bounds() {
             panic!("{msg}")
         }
     }
-
 }
