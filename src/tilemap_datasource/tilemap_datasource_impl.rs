@@ -21,4 +21,11 @@ pub trait TileMapDataSource<T> {
     /// This might involve flattening the tilemap structure into a `Vec<T>`,
     /// depending on how the trait functionality is implemented.
     fn take_data(&mut self) -> Vec<T>;
+
+    ///
+    /// This returns the index of instance of `T` that is used
+    /// if the procedural generator needs to access a value outside the map data.
+    /// For example, if your tilemap is surrounded by sea, this would return the index of a default
+    /// sea tile.
+    fn get_default_out_of_bounds_value_index(&self) -> usize;
 }

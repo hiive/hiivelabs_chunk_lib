@@ -2,35 +2,46 @@ use crate::chunk_layer::{ChunkLayer, TIndex};
 
 #[test]
 fn test_is_chunk_border_coord() {
+    let oob: Option<TIndex> = Some(0);
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
     assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
 }
 
 #[test]
 fn test_tile_coords_to_chunk_coords() {
+    let oob: Option<TIndex> = Some(0);
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.tile_coords_to_chunk_coords(15, 25), (1, 2));
 }
 
 #[test]
 fn test_chunk_coords_to_tile_coords() {
+    let oob: Option<TIndex> = Some(0);
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.chunk_coords_to_tile_coords(1, 2), (10, 20));
 }
 
 #[test]
 fn test_get_chunk_indices_for_tile_coords() {
+    let oob: Option<TIndex> = Some(0);
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, 32, 2, 2, 1, 10, 10);
+    let layer = ChunkLayer::new(prev_layer, 1, 32, 2, 2, 1, 10, 10, oob);
     // Assuming Bounds::get_index_for_coords and Bounds::is_in_bounds are correctly implemented
     // and chunks are properly initialized in the layer.
     // This example assumes chunks are laid out linearly and checks for boundary conditions.
     // Adjust the logic based on how your chunks are indexed and stored.
 
+    assert_eq!(layer.tile_bounds.width, 20);
+    assert_eq!(layer.tile_bounds.height, 20);
+    assert_eq!(layer.tile_bounds.padding, 1);
+    let padded_bounds = layer.tile_bounds.get_bound_coords(true);
+    let non_padded_bounds = layer.tile_bounds.get_bound_coords(false);
+    assert_eq!(padded_bounds, (-1, -1, 21, 21));
+    assert_eq!(non_padded_bounds, (0, 0, 20, 20));
     // at the top-left boundary
     let indices = layer.get_chunk_indices_for_tile_coords(0, 0);
     assert_eq!(indices.len(), 1);
@@ -88,7 +99,8 @@ fn test_get_chunk_indices_for_tile_coords() {
 #[test]
 fn test_set_and_get_top_layer_failing_case() {
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let mut layer = ChunkLayer::new(prev_layer, 1, 32, 1, 1, 1, 10, 10);
+    let oob: Option<TIndex> = Some(0);
+    let mut layer = ChunkLayer::new(prev_layer, 0, 32, 1, 1, 1, 10, 10, oob);
 
     //for i in -1_isize..5 {
     let x = 2;
@@ -106,11 +118,12 @@ fn test_set_and_get_top_layer_failing_case() {
 #[test]
 fn test_set_and_get_top_layer() {
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let mut layer = ChunkLayer::new(prev_layer, 1, 32, 1, 1, 1, 10, 10);
+    let oob: Option<TIndex> = Some(0);
+    let mut layer = ChunkLayer::new(prev_layer, 0, 32, 1, 1, 1, 10, 10, oob);
 
     for i in -1_isize..5 {
         let x = i;
-        let y = layer.height_in_tiles as isize - (i + 1);
+        let y = layer.tile_bounds.height as isize - (i + 1);
         let value: TIndex = (x + y) as TIndex;
 
         println!("{x}, {y}");
@@ -120,3 +133,55 @@ fn test_set_and_get_top_layer() {
         assert_eq!(r_value, value)
     }
 }
+
+// #[test]
+// fn test_set_and_get_layer1() {
+//     let mut layer0 = ChunkLayer::new(ChunkLayer::make_layer_rc(None),
+//                                      0,
+//                                      32,
+//                                      1,
+//                                      1,
+//                                      1,
+//                                      16,
+//                                      8);
+//
+//     // fill up layer 0
+//     let w0 = layer0.width_in_tiles as isize;
+//     let h0 = layer0.height_in_tiles as isize;
+//
+//     for y in 0..h0 {
+//         for x in 0..w0 {
+//             let v:TIndex = (y * w0 + x) as TIndex;
+//             layer0.set_at(x, y, v);
+//         }
+//     }
+//
+//     let mut layer0= ChunkLayer::make_layer_rc(Some(layer0));
+//     let mut layer1 = ChunkLayer::new(layer0.clone(),
+//                                      1,
+//                                      32,
+//                                      2,
+//                                      2,
+//                                      1,
+//                                      16,
+//                                      8);
+//
+//     // now let's query the layer 1 values.
+//     let w1 = layer1.width_in_tiles as isize;
+//     let h1 = layer1.height_in_tiles as isize;
+//
+//     // let mut layer0_opt = layer0;
+//     let mut layer0_borrowed =  layer0.borrow_mut();
+//     if let Some(layer0) = layer0_borrowed.as_mut()
+//     {
+//         for y in 0..h1 {
+//             for x in 0..w1 {
+//                 let v0 = layer0.get_at(x / 2, y / 2);
+//                 let v1 = layer1.get_at(x, y);
+//                 assert_eq!(v0, v1);
+//             }
+//         }
+//     }
+//
+//
+// }

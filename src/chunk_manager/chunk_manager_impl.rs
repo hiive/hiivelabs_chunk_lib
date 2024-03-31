@@ -1,8 +1,8 @@
+use crate::chunk_layer::{ChunkLayer, TIndex};
+use crate::tilemap_datasource::TileMapDataSource;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::tilemap_datasource::TileMapDataSource;
-use crate::chunk_layer::{ChunkLayer, TIndex};
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
@@ -13,6 +13,7 @@ pub struct ChunkManager<T> {
     /// The height in tiles of the top level map data.
     pub height: usize,
     pub(crate) owned_values: Vec<T>,
+
 }
 
 impl<T: std::fmt::Debug> ChunkManager<T> {
@@ -26,10 +27,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///                  The `source` data is copied into layer `0`.
     /// * `layer_chunk_cache_size`: The number of procedurally generated chunks to keep in the cache.
     ///                  This is per layer. The recommended minimum value for most use case is `32`.
-    /// * `chunk_width`: The width in tiles of the procedurally generated chunks.
+    /// * `chunk_width_in_tiles`: The width in tiles of the procedurally generated chunks.
     ///                  Each layer other than `0` is split into chunks.
     ///                  This must be exactly divisible by the `source` width.
-    /// * `chunk_height`: The height in tiles of the procedurally generated chunks.
+    /// * `chunk_height_in_tiles`: The height in tiles of the procedurally generated chunks.
     ///                  Each layer other than `0` is split into chunks.
     ///                  This must be exactly divisible by the `source` height.
     /// * `chunk_padding_in_tiles`: The number of tiles by which to overlap chunks.
@@ -41,11 +42,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
         layer_chunk_cache_size: u32,
-        chunk_width: usize,
-        chunk_height: usize,
+        chunk_width_in_tiles: usize,
+        chunk_height_in_tiles: usize,
         chunk_padding_in_tiles: usize,
     ) -> Self {
-
         let width = source.width();
         let height = source.height();
         assert!(
@@ -53,11 +53,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             "width and height must both be greater than zero"
         );
         assert!(
-            chunk_width > 0 && chunk_height > 0,
+            chunk_width_in_tiles > 0 && chunk_height_in_tiles > 0,
             "chunk_width and chunk_height must both be greater than zero"
         );
         assert!(
-            width % chunk_width == 0 && height % chunk_height == 0,
+            width % chunk_width_in_tiles == 0 && height % chunk_height_in_tiles == 0,
             "width/height must be exactly divisible by chunk width/height"
         );
         assert!(layer_count > 0, "layer_count must be greater than zero");
@@ -85,8 +85,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             source,
             layer_count,
             layer_chunk_cache_size,
-            chunk_width,
-            chunk_height,
+            chunk_width_in_tiles,
+            chunk_height_in_tiles,
             chunk_padding_in_tiles,
         );
 
@@ -95,6 +95,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             width,
             height,
             owned_values,
+
         }
     }
 
@@ -115,16 +116,18 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// Returns `Ok(&T)` if the specified coordinates are in bounds, else `Err(&str)`.
     pub fn get_at(&self, x: isize, y: isize, z: usize) -> Result<&T, &str> {
+        self.ensure_layer_chunks_are_complete(x, y, z);
+
         let some_layer = self.layers.get(z);
 
         match some_layer {
             Some(layer_rc) => {
-                let x = if z == 0 { x } else { x.pow(z as u32) };
-                let y = if z == 0 { y } else { y.pow(z as u32) };
+                //let x = if z == 0 { x } else { x.pow(z as u32) };
+                //let y = if z == 0 { y } else { y.pow(z as u32) };
                 // get the layer - this has to be in two stages to keep the ref
                 // around long enough
-                let layer_opt = layer_rc.borrow();
-                let layer = layer_opt.as_ref().unwrap();
+                let mut layer_opt = layer_rc.borrow_mut();
+                let layer = layer_opt.as_mut().unwrap();
                 // layer.get_at(x, y)
                 match layer.get_at(x, y) {
                     Some(ix) => Ok(&self.owned_values[ix]),
@@ -135,33 +138,102 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         }
     }
 
+    pub(crate) fn ensure_layer_chunks_are_complete(&self, x: isize, y: isize, z: usize) {
+        if z == 0 {
+            // nothing to do.
+            return;
+        }
+        // let's build a map of coordinates
+        let coord_map: Vec<(isize, isize)> = (0..=z)
+            .map(|l| {
+                let ld = (z - l) as u32;
+                let f = 2_isize.pow(ld);
+                // println!("coords: z:{z} - l:{l} = ld:{ld}: ({}, {}, f:{})", x / f, y / f, f);
+                (x / f, y / f)
+            })
+            .collect();
+
+        // for (ix, (x, y)) in coord_map.iter().enumerate() {
+        //     println!("layer [{ix}], {x}, {y}");
+        // }
+        // println!();
+
+        //return;
+        // we need to traverse down through the layers,
+        // ensuring that the chunk(s) referenced by the coordinates
+        // are complete in each layer.
+        for layer_id in 1..=z as usize {
+            let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
+            let layer_opt = layer_rc.borrow();
+            let layer = layer_opt.as_ref().unwrap();
+
+            // println!("layer [{layer_id}] size: [{}, {}]", layer.bounds.width, layer.bounds.height);
+            let (tx, ty) = coord_map[layer_id];
+            // println!("coords: ({tx}, {ty})");
+            // println!();
+            let (lw, lh) = (layer.tile_bounds.width, layer.tile_bounds.height);
+            // println!("top level ensure ({tx}, {ty}) layer: {layer_id} : ({lw}, {lh})");
+            layer.ensure_chunk_is_complete(tx, ty);
+        }
+    }
+
     fn init_layers(
         owned_values: &mut Vec<T>,
         mut source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
         layer_chunk_cache_size: u32,
-        chunk_width: usize,
-        chunk_height: usize,
+        chunk_width_in_tiles: usize,
+        chunk_height_in_tiles: usize,
         chunk_padding_in_tiles: usize,
     ) -> Vec<Rc<RefCell<Option<ChunkLayer>>>> {
-        let width_in_chunks = source.width() / chunk_width;
-        let height_in_chunks = source.height() / chunk_height;
+        let width_in_chunks = source.width() / chunk_width_in_tiles;
+        let height_in_chunks = source.height() / chunk_height_in_tiles;
 
         // create the layers
         let mut layers = Vec::with_capacity(layer_count);
         let mut prev_layer = Rc::new(RefCell::new(None));
         for layer_id in 0..layer_count {
             // each layer is double the width/height of the previous one.
-            let f = 2_usize.pow((layer_id + 1) as u32);
+            let f = 2_usize.pow(layer_id as u32);
+
+            let (
+                layer_chunk_width,
+                layer_chunk_height,
+                layer_width_in_chunks,
+                layer_height_in_chunks,
+                layer_chunk_padding_in_tiles,
+                layer_default_oob_value,
+            ) = {
+                if layer_id == 0 {
+                    (
+                        source.width(),
+                        source.height(),
+                        1,
+                        1,
+                        0,
+                        Some(source.get_default_out_of_bounds_value_index() as TIndex))
+                } else {
+                    (
+                        f * width_in_chunks,
+                        f * height_in_chunks,
+                        chunk_width_in_tiles,
+                        chunk_height_in_tiles,
+                        chunk_padding_in_tiles,
+                        None
+                    )
+                }
+            };
+
             let mut current_layer = ChunkLayer::new(
                 Rc::clone(&prev_layer),
                 layer_id,
                 layer_chunk_cache_size,
-                f * width_in_chunks,
-                f * height_in_chunks,
-                chunk_padding_in_tiles,
-                chunk_width,
-                chunk_height,
+                layer_width_in_chunks,
+                layer_height_in_chunks,
+                layer_chunk_padding_in_tiles,
+                layer_chunk_width,
+                layer_chunk_height,
+                layer_default_oob_value
             );
 
             // if we're on the top layer, populate it with the map data
@@ -179,10 +251,18 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         layers
     }
 
+    pub(crate) fn print_debug_layers(&self) {
+        for layer_rc in &self.layers {
+            let mut layer_opt = layer_rc.borrow_mut();
+            let layer = layer_opt.as_mut().unwrap();
+            layer.print_debug();
+        }
+    }
+
     fn populate_top_layer_from_source(
         owned_values: &mut Vec<T>,
-        mut source: &mut Box<dyn TileMapDataSource<T>>,
-        mut current_layer: &mut ChunkLayer,
+        source: &mut Box<dyn TileMapDataSource<T>>,
+        current_layer: &mut ChunkLayer,
     ) {
         let width = source.width();
         let height = source.height();
@@ -198,7 +278,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // populate top layer
         let mut map_data = { source.take_data() }; // take the map data
-        let top_layer = &mut current_layer;
+        let layer0 = current_layer;
         for (ix, item) in map_data.drain(..).enumerate() {
             let (x, y) = ix_map[&ix];
             // store the value and set the layer coords with the index value
@@ -206,8 +286,15 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             owned_values.push(item);
             {
                 let t_index: TIndex = owned_values.len() - 1;
-                top_layer.set_at(x, y, t_index);
+                layer0.set_at(x, y, t_index);
             }
         }
+        // sanity check
+        let mut layer0_chunks = layer0.chunks.borrow_mut();
+        let layer0_chunk = layer0_chunks.get(&0).expect("No parent chunk found.");
+        let incomplete_count = layer0_chunk.get_unset_tile_count();
+        let total_count = width * height;
+        println!("incomplete: {incomplete_count}/{total_count}");
+        assert!(layer0_chunk.is_complete());
     }
 }

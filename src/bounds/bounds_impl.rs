@@ -7,7 +7,6 @@ pub(crate) struct Bounds {
     pub(crate) width: usize,
     pub(crate) height: usize,
     pub(crate) padding: usize,
-    pub(crate) assert_on_out_of_bounds: bool,
 }
 
 impl Bounds {
@@ -19,7 +18,7 @@ impl Bounds {
     /// (0, 0) represents the top-left tile that is not in the padding area.
     /// (-1, -1) would indicate the tile to the top-left of that (assuming that the padding
     /// was at least 1.)
-    pub(crate) fn get_index_for_coords(&self, x: isize, y: isize) -> (isize, isize, isize) {
+    pub(crate) fn get_index_for_coords(&self, x: isize, y: isize, assert_on_out_of_bounds: bool) -> (isize, isize, isize) {
         let padding = self.padding as isize;
         let width = self.width as isize;
         let height = self.height as isize;
@@ -31,11 +30,12 @@ impl Bounds {
         //     let sy = self.y;
         //     println!("Bounds::get_index_for_coords: self:({sx}, {sy}) pad:({padding})");
         //     println!("Bounds::get_index_for_coords: ({x}, {y}) -> adj:({adj_x}, {adj_y})");
+        //     println!();
         // }
 
         let padded_width = width + 2 * padding;
         let padded_height = height + 2 * padding;
-        if self.assert_on_out_of_bounds {
+        if assert_on_out_of_bounds {
             assert!(
                 (adj_x >= 0) && (adj_x < padded_width) && (adj_y >= 0) && (adj_y < padded_height),
                 "Chunk coordinates are out of bounds"
@@ -44,9 +44,34 @@ impl Bounds {
         (adj_y * padded_width + adj_x, adj_x, adj_y)
     }
 
+
+    pub(crate) fn get_bound_coords(&self, include_padding: bool) -> (isize, isize, isize, isize) {
+
+        let padding = if include_padding {
+            self.padding as isize
+        } else {
+            0
+        };
+
+        let padded_width = self.width as isize + 2 * padding;
+        let padded_height = self.height as isize + 2 * padding;
+
+        let min_x = self.x - padding;
+        let min_y = self.y - padding;
+
+        let max_x = min_x + padded_width;
+        let max_y = min_y + padded_height;
+
+        (min_x, min_y, max_x, max_y)
+    }
+
     /// This confirms that the specified index is in bounds.
     pub(crate) fn is_in_bounds(&self, ix: isize) -> bool {
-        let max_ix = (self.width + (2 * self.padding)) * (self.height + (2 * self.padding));
-        ix >= 0 && ix < max_ix as isize
+        let padding = self.padding as isize;
+        let padded_width = self.width as isize + 2 * padding;
+        let padded_height = self.height as isize + 2 * padding;
+        let max_ix = padded_width * padded_height;
+        // check is in bounds.
+        ix >= 0 && ix < max_ix
     }
 }
