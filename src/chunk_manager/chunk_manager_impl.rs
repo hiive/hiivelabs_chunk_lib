@@ -308,13 +308,59 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         (layers, out_of_bounds_value_index)
     }
 
-    pub(crate) fn print_debug_layers(&self, with_padding:bool) {
+    pub(crate) fn print_debug_layer_indices(&self, with_padding:bool) {
         for layer_rc in &self.layers {
             let mut layer_opt = layer_rc.borrow_mut();
             let layer = layer_opt.as_mut().unwrap();
+
+            // for debug printing, replace the old oob value with the layer 0 one
+            let old_oob = layer.out_of_bounds_value_index;
+            layer.out_of_bounds_value_index = Some(self.out_of_bounds_value_index);
             layer.print_debug(with_padding);
+            // restore the old value when we're done.
+            layer.out_of_bounds_value_index = old_oob;
         }
     }
+
+    pub(crate) fn print_debug_layer_values(&self, with_padding:bool) {
+        let layer_bounds = {
+            let mut lbs = Vec::with_capacity(self.layers.len());
+            for layer_rc in &self.layers {
+                let mut layer_opt = layer_rc.borrow_mut();
+                let layer = layer_opt.as_mut().unwrap();
+                let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
+                let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
+                lbs.push((print_bounds, cropped_bounds));
+            }
+            lbs
+        };
+        for (layer_id, (print_bounds, cropped_bounds)) in layer_bounds.iter().enumerate() {
+            let (x_min, y_min, x_max, y_max) = *print_bounds;
+            let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds;
+
+            println!();
+
+            println!("Layer: [{layer_id}] - VALUES");
+            println!();
+
+            for y in y_min..y_max {
+                for x in x_min..x_max {
+                    let result = self.get_at(x, y, layer_id);
+                    match result {
+                        Err(_) => {
+                            print!("-- ");
+                        }
+                        Ok(t) => {
+                            print!("{t:?} ");
+                        }
+                    }
+                }
+                println!();
+            }
+            println!();
+        }
+    }
+
 
     fn populate_top_layer_from_source(
         owned_values: &mut Vec<T>,
@@ -328,6 +374,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         for y in 0..height {
             for x in 0..width {
                 if let Some(ix) = source.get_index_of(x, y) {
+                    // we have the index into the source data of coordinates (x, y)
                     ix_map.insert(ix, (x as isize, y as isize));
                 }
             }
@@ -338,12 +385,14 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let layer0 = current_layer;
         for (ix, item) in map_data.drain(..).enumerate() {
             let (x, y) = ix_map[&ix];
+
+            // println!("Source: ({x}, {y}): {item:?}");
             // store the value and set the layer coords with the index value
             // for the stored value
             owned_values.push(item);
             {
                 let t_index: TIndex = owned_values.len() - 1;
-                layer0.set_at(x, y, t_index);
+                let _ = layer0.set_at(x, y, t_index);
             }
         }
         // sanity check

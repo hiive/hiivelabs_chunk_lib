@@ -68,8 +68,13 @@ impl Bounds {
         (min_x, min_y, max_x, max_y)
     }
 
+    pub(crate) fn is_coords_in_bounds(&self, tx: isize, ty:isize, with_padding:bool) -> bool {
+        let (min_x, min_y, max_x, max_y) = self.get_bound_coords(with_padding);
+        tx >= min_x && tx < max_x && ty >= min_y && ty < max_y
+    }
+
     /// This confirms that the specified index is in bounds.
-    pub(crate) fn is_in_bounds(&self, ix: isize) -> bool {
+    pub(crate) fn is_index_in_bounds(&self, ix: isize) -> bool {
         let padding = self.padding as isize;
         let padded_width = self.width as isize + 2 * padding;
         let padded_height = self.height as isize + 2 * padding;

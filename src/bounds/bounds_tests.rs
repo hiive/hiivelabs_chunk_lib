@@ -72,13 +72,13 @@ fn test_is_in_bounds_limits() {
         y: 0,
         width: 10,
         height: 10,
-        padding: 1, // Adjusted padding to ensure the logic in `is_in_bounds` is correct.
+        padding: 1, // Adjusted padding to ensure the logic in `is_index_in_bounds` is correct.
     };
 
     let result= bounds.get_index_for_coords(0, 0, false);
     match result {
         Ok((ix, _, _)) => {
-            assert!(bounds.is_in_bounds(ix));
+            assert!(bounds.is_index_in_bounds(ix));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -88,7 +88,7 @@ fn test_is_in_bounds_limits() {
     let result = bounds.get_index_for_coords(-1, -1, false);
     match result {
         Ok((ix, _, _)) => {
-            assert!(bounds.is_in_bounds(ix));
+            assert!(bounds.is_index_in_bounds(ix));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -98,7 +98,7 @@ fn test_is_in_bounds_limits() {
     let result = bounds.get_index_for_coords(-2, -2, false);
     match result {
         Ok((ix, _, _)) => {
-            assert!(!bounds.is_in_bounds(ix));
+            assert!(!bounds.is_index_in_bounds(ix));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -109,7 +109,7 @@ fn test_is_in_bounds_limits() {
 
     match result {
         Ok((ix, _, _)) => {
-            assert!(!bounds.is_in_bounds(ix));
+            assert!(!bounds.is_index_in_bounds(ix));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -119,7 +119,7 @@ fn test_is_in_bounds_limits() {
     let result = bounds.get_index_for_coords(12, 12, false);
     match result {
         Ok((ix, _, _)) => {
-            assert!(!bounds.is_in_bounds(ix));
+            assert!(!bounds.is_index_in_bounds(ix));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -134,13 +134,13 @@ fn test_is_in_bounds_false() {
         y: 0,
         width: 10,
         height: 10,
-        padding: 1, // Adjusted padding to ensure the logic in `is_in_bounds` is correct.
+        padding: 1, // Adjusted padding to ensure the logic in `is_index_in_bounds` is correct.
     };
 
-    // Assuming the adjustment for `is_in_bounds` logic: `ix < 0 || ix >= max_ix as isize`
-    // Note: The test indicates a logic correction needed in `is_in_bounds`.
+    // Assuming the adjustment for `is_index_in_bounds` logic: `ix < 0 || ix >= max_ix as isize`
+    // Note: The test indicates a logic correction needed in `is_index_in_bounds`.
     let max_index = bounds.width as isize * bounds.height as isize;
-    assert!(bounds.is_in_bounds(max_index)); // Should be out of bounds
+    assert!(bounds.is_index_in_bounds(max_index)); // Should be out of bounds
 }
 
 #[test]
@@ -185,7 +185,7 @@ fn coordinates_within_padding_are_in_bounds() {
     let result = bounds.get_index_for_coords(-1, -1, false);
     match result {
         Ok(within_padding_top_left) => {
-            assert!(bounds.is_in_bounds(within_padding_top_left.0));
+            assert!(bounds.is_index_in_bounds(within_padding_top_left.0));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -196,7 +196,7 @@ fn coordinates_within_padding_are_in_bounds() {
     let result = bounds.get_index_for_coords(11, 11, false);
     match result {
         Ok(within_padding_bottom_right) => {
-            assert!(bounds.is_in_bounds(within_padding_bottom_right.0));
+            assert!(bounds.is_index_in_bounds(within_padding_bottom_right.0));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -219,7 +219,7 @@ fn coordinates_outside_padding_are_out_of_bounds() {
     let result = bounds.get_index_for_coords(-6, -6, false);
     match result {
         Ok(outside_padding_top_left) => {
-            assert!(!bounds.is_in_bounds(outside_padding_top_left.0));
+            assert!(!bounds.is_index_in_bounds(outside_padding_top_left.0));
         }
         Err(msg) => {
             panic!("{msg}")
@@ -230,7 +230,7 @@ fn coordinates_outside_padding_are_out_of_bounds() {
     let result = bounds.get_index_for_coords(16, 16, false);
     match result {
         Ok(outside_padding_bottom_right) => {
-            assert!(!bounds.is_in_bounds(outside_padding_bottom_right.0));
+            assert!(!bounds.is_index_in_bounds(outside_padding_bottom_right.0));
         }
         Err(msg) => {
             panic!("{msg}")

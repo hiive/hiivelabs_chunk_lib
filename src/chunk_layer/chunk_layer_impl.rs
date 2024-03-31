@@ -1,12 +1,12 @@
-use crate::bounds::Bounds;
-use crate::chunk::Chunk;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use miniz_oxide::deflate::compress_to_vec;
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
-use std::cell::RefCell;
-use std::panic;
-use std::panic::AssertUnwindSafe;
-use std::rc::Rc;
+
+use crate::bounds::Bounds;
+use crate::chunk::Chunk;
 
 pub type TIndex = usize;
 
@@ -20,6 +20,7 @@ pub struct ChunkLayer {
     pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
+    pub(crate) layer_0_out_of_bounds_value_index: Option<TIndex>,
 }
 
 impl ChunkLayer {
@@ -36,7 +37,7 @@ impl ChunkLayer {
         chunk_padding_in_tiles: usize,
         chunk_width_in_tiles: usize,
         chunk_height_in_tiles: usize,
-        default_out_of_bounds_value: Option<TIndex>,
+        out_of_bounds_value_index: Option<TIndex>,
     ) -> Self {
         let width_in_tiles = width_in_chunks * chunk_width_in_tiles;
         let height_in_tiles = height_in_chunks * chunk_height_in_tiles;
@@ -55,7 +56,7 @@ impl ChunkLayer {
         // else {
         //     assert!(out_of_bounds_value_index.is_none(), "Default value for layer >0");
         // }
-
+        //
         // let chunk_store = World::new();
         Self {
             layer_id,
@@ -78,7 +79,8 @@ impl ChunkLayer {
             chunk_height_in_tiles,
             chunks,
             parent_layer,
-            out_of_bounds_value_index: default_out_of_bounds_value,
+            out_of_bounds_value_index,
+            layer_0_out_of_bounds_value_index: None,
         }
     }
 
@@ -317,9 +319,9 @@ impl ChunkLayer {
         // let (chunk_ix, _, _) = self.bounds.get_index_for_coords(cx, cy);
         let chunk_ix = self.get_hash_index_for_chunk_coords(cx, cy);
         // check we are in bounds
-        // if self.bounds.is_in_bounds(chunk_ix) {
+        // if self.bounds.is_index_in_bounds(chunk_ix) {
         if let Some(ix) = chunk_ix {
-            if self.chunk_bounds.is_in_bounds(ix) {
+            if self.chunk_bounds.is_index_in_bounds(ix) {
                 chunk_indices.push((ix, (cx, cy)))
             }
         }
@@ -421,13 +423,14 @@ impl ChunkLayer {
         let compressed = compress_to_vec(encoded.as_slice(), 6);
     }
 
-    pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) {
+    pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str>{
         // /*
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
         // #[cfg(debug_assertions)]
         // println!("ChunkLayer::set_at: get_chunk_indices_for_tile_coords: ({tx}, {ty}) -> {chunk_ixs:?}");
+        let mut error_count = 0;
         for (chunk_ix, _) in chunk_ixs {
             let mut chunks = self.chunks.borrow_mut();
             let chunk = chunks.get(&chunk_ix).unwrap(); // we know the chunk exists.
@@ -436,12 +439,23 @@ impl ChunkLayer {
             // println!("ChunkLayer::set_at: chunk[ix]: ({chunk_ix})");
 
             let result = chunk.set_at(tx, ty, value);
+            if result.is_err() {
+                error_count += 1;
+            }
+        }
+        if error_count == 0 {
+            Ok(())
+        }
+        else {
+            Err("Layer coordinates out of bounds")
         }
     }
 
     pub fn get_at(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
-        let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(true);
-        if tx < min_x || tx >= max_x || ty < min_y || ty >= max_y {
+        // let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(false);
+        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = self.tile_bounds.get_bound_coords(false);
+        let oob = tx < cropped_x_min || tx >= cropped_x_max || ty < cropped_y_min || ty >= cropped_y_max;
+        if oob {
             // short circuit
             return self.out_of_bounds_value_index;
         }
@@ -524,7 +538,7 @@ impl ChunkLayer {
         let id = self.layer_id;
         println!();
 
-        println!("Layer: [{id}]");
+        println!("Layer: [{id}] - INDICES");
         println!();
 
         let bb = (
@@ -535,11 +549,14 @@ impl ChunkLayer {
         );
         println!("(x, y, w, h) = {bb:?}");
 
-        let (x0, y0, x1, y1) = self.tile_bounds.get_bound_coords(with_padding);
-        println!("(x0, y0, x1, y1) = {:?}", (x0, y0, x1, y1));
+        let (x_min, y_min, x_max, y_max) = self.tile_bounds.get_bound_coords(with_padding);
+        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = self.tile_bounds.get_bound_coords(false);
+        println!("(x_min, y_min, x_max, y1) = {:?}", (x_min, y_min, x_max, y_max));
 
-        for y in y0..y1 {
-            for x in x0..x1 {
+        for y in y_min..y_max {
+            for x in x_min..x_max {
+                // let oob = false; //x < cropped_x_min || x >= cropped_x_max || y < cropped_y_min || y >= cropped_y_max;
+                // let ov = if oob { None } else { self.get_at(x, y) };
                 let ov = self.get_at(x, y);
                 let (xb, yb) = self.is_chunk_border_coord(x, y);
                 match ov {

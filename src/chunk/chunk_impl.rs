@@ -55,7 +55,7 @@ impl Chunk {
     ) -> Option<TIndex> {
         if let Ok((ix, _, _)) = self.bounds.get_index_for_coords(tx, ty, false)
         {
-            if self.bounds.is_in_bounds(ix) {
+            if self.bounds.is_index_in_bounds(ix) {
                 // !("Chunk::get_at_or_default: ({tx}, {ty}) Got default value: {default_value:?}");
                 return self.get_by_index(ix)
             }

@@ -30,7 +30,7 @@ fn test_get_chunk_indices_for_tile_coords() {
     let oob: Option<TIndex> = Some(0);
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let layer = ChunkLayer::new(prev_layer, 1, 32, 2, 2, 1, 10, 10, oob);
-    // Assuming Bounds::get_index_for_coords and Bounds::is_in_bounds are correctly implemented
+    // Assuming Bounds::get_index_for_coords and Bounds::is_index_in_bounds are correctly implemented
     // and chunks are properly initialized in the layer.
     // This example assumes chunks are laid out linearly and checks for boundary conditions.
     // Adjust the logic based on how your chunks are indexed and stored.
@@ -109,7 +109,7 @@ fn test_set_and_get_top_layer_failing_case() {
 
     println!("{x}, {y}");
 
-    layer.set_at(x, y, value);
+    let _ = layer.set_at(x, y, value);
     let r_value = layer.get_at(x, y).expect("Value should be set");
     assert_eq!(r_value, value)
     //}
@@ -128,9 +128,14 @@ fn test_set_and_get_top_layer() {
 
         println!("{x}, {y}");
 
-        layer.set_at(x, y, value);
+        let _ = layer.set_at(x, y, value);
         let r_value = layer.get_at(x, y).expect("Value should be set");
-        assert_eq!(r_value, value)
+        if layer.tile_bounds.is_coords_in_bounds(x, y, false) {
+            assert_eq!(r_value, value)
+        }
+        else {
+            assert_eq!(r_value, oob.unwrap())
+        }
     }
 }
 

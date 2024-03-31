@@ -3,16 +3,35 @@ use crate::TileMapDataSource;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::time::Instant;
+use std::fmt;
+use std::fmt::Formatter;
+
+/// A wrapper around `u8` that implements `Debug` to display the value in hexadecimal.
+#[derive(Clone)]
+pub(crate) struct HexU8(u8);
+
+/// Implement `Debug` for `HexU8` to format the inner `u8` value as hexadecimal.
+impl fmt::Debug for HexU8 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:02x}", self.0)
+    }
+}
+
+impl fmt::UpperHex for HexU8 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:02X}", self.0)
+    }
+}
 
 #[derive(Clone)]
 struct TestMap {
-    pub(crate) data: Vec<u8>,
+    pub(crate) data: Vec<HexU8>,
     width: usize,
     height: usize,
     oob_index: usize,
 }
 
-impl TileMapDataSource<u8> for TestMap {
+impl TileMapDataSource<HexU8> for TestMap {
     fn width(&self) -> usize {
         self.width
     }
@@ -30,7 +49,7 @@ impl TileMapDataSource<u8> for TestMap {
         }
     }
 
-    fn take_data(&mut self) -> Vec<u8> {
+    fn take_data(&mut self) -> Vec<HexU8> {
         // self.data.iter().collect()
         std::mem::take(&mut self.data)
     }
@@ -47,15 +66,19 @@ impl TestMap {
             Self::generate_random_vector(data_len)
         } else {
             (0..data_len)
-                .map(|i| 0_u8.wrapping_add(i as u8) % 0xFE)
+                .map(|i| HexU8(0_u8.wrapping_add(i as u8) % 0xFE))
                 .collect()
         };
         // ensure that there is a 0xFF in the data
-        let oob_index = data_len - 1;
-        data[oob_index] = 0xFF;
-
-        println!("OOB VALUE: {}", data[oob_index]);
-
+        let oob_index = {
+            if data_len > 0 {
+                let oob_index = data_len - 1;
+                data[oob_index] = HexU8(0xFF);
+                println!("OOB VALUE: {:?}", data[oob_index]);
+                oob_index
+            }
+            else { 0 }
+        };
 
         Self {
             width,
@@ -64,10 +87,10 @@ impl TestMap {
             oob_index,
         }
     }
-    fn generate_random_vector(length: usize) -> Vec<u8> {
+    fn generate_random_vector(length: usize) -> Vec<HexU8> {
         let seed = [42; 32];
         let mut rng = StdRng::from_seed(seed);
-        (0..length).map(|_| rng.gen()).collect()
+        (0..length).map(|_| HexU8(rng.gen())).collect()
     }
 }
 
@@ -80,14 +103,14 @@ pub(crate) fn make_test_chunk_manager(
     chunk_height: usize,
     chunk_padding_in_tiles: usize,
     use_random_map: bool,
-) -> ChunkManager<u8> {
+) -> ChunkManager<HexU8> {
     let start = Instant::now(); // Start timing
     let test_map = Box::new(TestMap::new(width, height, use_random_map));
     let duration = start.elapsed();
     println!("Random map creation in {duration:?}");
 
     let start = Instant::now(); // Start timing
-    let cm = ChunkManager::<u8>::new(
+    let cm = ChunkManager::<HexU8>::new(
         test_map,
         layer_count,
         layer_chunk_lru_cache_size,
@@ -192,7 +215,7 @@ fn test_can_get_from_non_zero_layer() {
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true);
 
     println!("[INITIAL]");
-    cm.print_debug_layers(false);
+    cm.print_debug_layer_indices(false);
 
     let c = 2_isize.pow(4);
     println!("Looking at ({c}, {c}, 3)");
@@ -200,7 +223,7 @@ fn test_can_get_from_non_zero_layer() {
     println!("test_val: {test_val:02X}");
 
     println!("[INTERIM]");
-    cm.print_debug_layers(false);
+    cm.print_debug_layer_indices(false);
     for l in 0..5 {
         let bounds = cm.get_bounds_for_layer(l, true);
         println!("Layer {l} bounds: {bounds:?}");
@@ -231,5 +254,7 @@ fn test_can_get_from_non_zero_layer() {
         }
     }
     println!("[FINAL]");
-    cm.print_debug_layers(true);
+    cm.print_debug_layer_indices(true);
+
+    cm.print_debug_layer_values(true);
 }

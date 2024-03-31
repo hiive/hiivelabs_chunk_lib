@@ -40,10 +40,10 @@ fn set_and_get_tile() {
 }
 
 #[test]
-#[should_panic(expected = "Chunk coordinates are out of bounds")]
 fn set_at_out_of_bounds() {
     let mut chunk = Chunk::new(0, 0, 10, 10, 1);
-    let _ = chunk.set_at(50, 50, 42); // This should panic
+    let result = chunk.set_at(50, 50, 42);
+    assert!(result.is_err());
 }
 
 #[test]
