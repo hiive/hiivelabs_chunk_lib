@@ -4,8 +4,9 @@ use uuid::Uuid;
 #[test]
 fn test_is_chunk_border_coord() {
     let oob: Option<TIndex> = Some(0);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, Uuid::new_v4(), 32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes,32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
     assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
 }
@@ -13,24 +14,27 @@ fn test_is_chunk_border_coord() {
 #[test]
 fn test_tile_coords_to_chunk_coords() {
     let oob: Option<TIndex> = Some(0);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, Uuid::new_v4(), 32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.tile_coords_to_chunk_coords(15, 25), (1, 2));
 }
 
 #[test]
 fn test_chunk_coords_to_tile_coords() {
     let oob: Option<TIndex> = Some(0);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, Uuid::new_v4(), 32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.chunk_coords_to_tile_coords(1, 2), (10, 20));
 }
 
 #[test]
 fn test_get_chunk_indices_for_tile_coords() {
     let oob: Option<TIndex> = Some(0);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, Uuid::new_v4(), 32, 2, 2, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 2, 2, 1, 10, 10, oob);
     // Assuming Bounds::get_index_for_coords and Bounds::is_index_in_bounds are correctly implemented
     // and chunks are properly initialized in the layer.
     // This example assumes chunks are laid out linearly and checks for boundary conditions.
@@ -101,7 +105,8 @@ fn test_get_chunk_indices_for_tile_coords() {
 fn test_set_and_get_top_layer_failing_case() {
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let mut layer = ChunkLayer::new(prev_layer, 0, Uuid::new_v4(), 32, 1, 1, 1, 10, 10, oob);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 1, 1, 1, 10, 10, oob);
 
     //for i in -1_isize..5 {
     let x = 2;
@@ -120,7 +125,8 @@ fn test_set_and_get_top_layer_failing_case() {
 fn test_set_and_get_top_layer() {
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let mut layer = ChunkLayer::new(prev_layer, 0, Uuid::new_v4(), 32, 1, 1, 1, 10, 10, oob);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 1, 1, 1, 10, 10, oob);
 
     for i in -1_isize..5 {
         let x = i;

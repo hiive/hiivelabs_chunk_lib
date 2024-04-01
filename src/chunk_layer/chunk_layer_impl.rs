@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
+use crate::chunk_manager::{create_seed_from_guid_x_y, create_seed_from_guid_bytes_x_y};
 
 pub type TIndex = usize;
 
@@ -21,7 +22,7 @@ pub struct ChunkLayer {
     pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
-    pub(crate) layer_guid: Uuid,
+    pub(crate) guid_bytes: [u8; 16],
 }
 
 impl ChunkLayer {
@@ -32,7 +33,7 @@ impl ChunkLayer {
     pub fn new(
         parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
         layer_id: usize,
-        layer_guid: Uuid,
+        layer_guid_bytes: [u8;16],
         layer_chunk_lru_cache_size: u32,
         width_in_chunks: usize,
         height_in_chunks: usize,
@@ -62,7 +63,7 @@ impl ChunkLayer {
         // let chunk_store = World::new();
         Self {
             layer_id,
-            layer_guid,
+            guid_bytes: layer_guid_bytes,
             layer_chunk_lru_cache_size,
             chunk_bounds: Bounds {
                 x: 0,
@@ -397,13 +398,14 @@ impl ChunkLayer {
 
                     // #[cfg(debug_assertions)]
                     // println!("ChunkLayer::ensure_chunk_exists: chunk_coords_to_tile_coords: ({cx}, {cy}) -> ({c_tx}, {c_ty})");
-
+                    let guid = Uuid::from_bytes(create_seed_from_guid_bytes_x_y(&self.guid_bytes, c_tx, c_ty));
                     let new_chunk = Chunk::new(
                         c_tx,
                         c_ty,
                         self.chunk_width_in_tiles,
                         self.chunk_height_in_tiles,
                         self.tile_bounds.padding,
+                        guid
                     );
                     if chunks.len() == self.layer_chunk_lru_cache_size as usize {
                         // the cache is full.
@@ -539,7 +541,7 @@ impl ChunkLayer {
 
     pub(crate) fn print_debug(&mut self, with_padding: bool) {
         let id = self.layer_id;
-        let guid = self.layer_guid;
+        let guid = Uuid::from_bytes(self.guid_bytes);
         println!();
 
         println!("Layer: [{id}]:[{guid}] - INDICES");

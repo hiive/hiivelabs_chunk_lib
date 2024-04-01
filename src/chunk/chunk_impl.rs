@@ -1,6 +1,7 @@
 use crate::bounds::Bounds;
 use crate::chunk_layer::TIndex;
 use bitcode::{Decode, Encode};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct Chunk {
@@ -8,10 +9,11 @@ pub struct Chunk {
     pub(crate) chunk_width: usize,
     pub(crate) chunk_height: usize,
     pub(crate) tiles: Vec<Option<TIndex>>,
+    pub(crate) guid_bytes: [u8; 16],
 }
 
 impl Chunk {
-    pub(crate) fn new(x: isize, y: isize, width: usize, height: usize, padding: usize) -> Self {
+    pub(crate) fn new(x: isize, y: isize, width: usize, height: usize, padding: usize, chunk_guid: Uuid) -> Self {
         let chunk_width = width + 2 * padding;
         let chunk_height = height + 2 * padding;
         let tiles = {
@@ -20,6 +22,8 @@ impl Chunk {
             vec.resize_with(vec_size, Default::default);
             vec
         };
+
+        let guid_bytes = chunk_guid.as_bytes().to_owned();
 
         Self {
             bounds: Bounds {
@@ -32,6 +36,7 @@ impl Chunk {
             chunk_width,
             chunk_height,
             tiles,
+            guid_bytes
         }
     }
 

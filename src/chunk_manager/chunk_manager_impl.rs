@@ -1,28 +1,12 @@
-use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::tilemap_datasource::TileMapDataSource;
-use blake2::digest::{Update, VariableOutput};
-use blake2::Blake2bVar;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 
-// todo - maybe move this.
-pub(crate) fn create_seed(guid: Uuid, x: usize, y: usize) -> [u8; 16] {
-    // Convert the GUID and usize values to byte arrays
-    let uuid_bytes = guid.as_bytes();
-    let x_bytes = x.to_ne_bytes();
-    let y_bytes = y.to_ne_bytes();
+use crate::chunk_layer::{ChunkLayer, TIndex};
+use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
+use crate::tilemap_datasource::TileMapDataSource;
 
-    // Create a Blake2b512 hasher and input the GUID, x, and y bytes
-    let mut hasher = Blake2bVar::new(16).unwrap();
-    hasher.update(uuid_bytes);
-    hasher.update(&x_bytes);
-    hasher.update(&y_bytes);
-    let mut seed = [0u8; 16];
-    hasher.finalize_variable(&mut seed).unwrap();
-    seed
-}
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
@@ -34,7 +18,7 @@ pub struct ChunkManager<T> {
     pub height: usize,
     pub(crate) owned_values: Vec<T>,
     pub(crate) out_of_bounds_value_index: TIndex,
-    pub guid: Uuid,
+    pub(crate) guid_bytes: [u8; 16],
     // pub(crate) rnd : SmallRng
 }
 
@@ -98,7 +82,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let is_new = guid.is_none(); //todo - use this to determine whether to look in storage
         let _is_new = is_new; // temp
 
-        let guid = guid.unwrap_or(Uuid::new_v4());
+        let guid_bytes  = guid.unwrap_or(Uuid::new_v4()).as_bytes().to_owned();
 
 
         // let's calculate a reasonable starting capacity for the owned_values vector.
@@ -116,7 +100,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // create the layers
         let (layers, out_of_bounds_value_index) = ChunkManager::init_layers(
-            &guid,
+            &guid_bytes,
             &mut owned_values,
             source,
             layer_count,
@@ -132,7 +116,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             height,
             owned_values,
             out_of_bounds_value_index,
-            guid,
+            guid_bytes,
         }
     }
 
@@ -276,7 +260,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     fn init_layers(
-        guid: &Uuid,
+        guid: &[u8; 16],
         owned_values: &mut Vec<T>,
         mut source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
@@ -294,7 +278,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let mut prev_layer = Rc::new(RefCell::new(None));
         for layer_id in 0..layer_count {
             // each layer is double the width/height of the previous one.
-            let layer_guid = Uuid::from_bytes(create_seed(*guid, layer_id, 0));
+            let layer_guid = create_seed_from_guid_bytes_x_y(guid, layer_id as isize, 0);
             let f = 2_usize.pow(layer_id as u32);
 
             let (
@@ -355,7 +339,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     pub(crate) fn print_debug_layer_indices(&self, with_padding: bool) {
-        println!("ChunkManager [{}]", self.guid);
+        println!("ChunkManager [{}]", Uuid::from_bytes(self.guid_bytes));
 
         for layer_rc in &self.layers {
             let mut layer_opt = layer_rc.borrow_mut();
@@ -371,7 +355,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     pub(crate) fn print_debug_layer_values(&self, with_padding: bool) {
-        println!("ChunkManager: [{}]", self.guid);
+        println!("ChunkManager: [{}]", Uuid::from_bytes(self.guid_bytes));
 
         let layer_bounds = {
             let mut lbs = Vec::with_capacity(self.layers.len());
@@ -380,7 +364,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 let layer = layer_opt.as_mut().unwrap();
                 let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
                 let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
-                lbs.push((print_bounds, cropped_bounds, layer.layer_guid));
+                lbs.push((print_bounds, cropped_bounds, Uuid::from_bytes(layer.guid_bytes)));
             }
             lbs
         };

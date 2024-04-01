@@ -6,10 +6,11 @@ use miniz_oxide::inflate::decompress_to_vec;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use std::time::Instant;
+use uuid::Uuid;
 
 #[test]
 fn chunk_creation() {
-    let chunk = Chunk::new(0, 0, 10, 10, 1);
+    let chunk = Chunk::new(0, 0, 10, 10, 1, Uuid::new_v4());
     assert_eq!(chunk.bounds.width, 10);
     assert_eq!(chunk.bounds.height, 10);
     assert_eq!(chunk.bounds.padding, 1);
@@ -19,13 +20,13 @@ fn chunk_creation() {
 
 #[test]
 fn get_at_for_empty_tile() {
-    let chunk = Chunk::new(0, 0, 10, 10, 1);
+    let chunk = Chunk::new(0, 0, 10, 10, 1, Uuid::new_v4());
     assert!(chunk.get_at(5, 5).is_none());
 }
 
 #[test]
 fn set_at_for_occupied_tile() {
-    let mut chunk = Chunk::new(0, 0, 10, 10, 1);
+    let mut chunk = Chunk::new(0, 0, 10, 10, 1, Uuid::new_v4());
     let _ = chunk.set_at(5, 5, 42); // Assuming ChunkTile takes an i32 for this example
     assert_eq!(chunk.get_at(5, 5).unwrap(), 42);
     let _ = chunk.set_at(5, 5, 43); // Assuming ChunkTile takes an i32 for this example
@@ -34,21 +35,21 @@ fn set_at_for_occupied_tile() {
 
 #[test]
 fn set_and_get_tile() {
-    let mut chunk = Chunk::new(0, 0, 10, 10, 1);
+    let mut chunk = Chunk::new(0, 0, 10, 10, 1, Uuid::new_v4());
     let _ = chunk.set_at(5, 5, 42); // Assuming ChunkTile takes an i32 for this example
     assert_eq!(chunk.get_at(5, 5).unwrap(), 42);
 }
 
 #[test]
 fn set_at_out_of_bounds() {
-    let mut chunk = Chunk::new(0, 0, 10, 10, 1);
+    let mut chunk = Chunk::new(0, 0, 10, 10, 1, Uuid::new_v4());
     let result = chunk.set_at(50, 50, 42);
     assert!(result.is_err());
 }
 
 #[test]
 fn is_not_complete() {
-    let chunk = Chunk::new(0, 0, 10, 10, 1);
+    let chunk = Chunk::new(0, 0, 10, 10, 1, Uuid::new_v4());
     assert!(!chunk.is_complete())
 }
 
@@ -60,7 +61,7 @@ fn generate_random_vector(length: usize) -> Vec<usize> {
 }
 
 fn build_complete_chunk(width: usize, height: usize, padding: usize, is_random: bool) -> Chunk {
-    let mut chunk = Chunk::new(0, 0, width, height, padding);
+    let mut chunk = Chunk::new(0, 0, width, height, padding, Uuid::new_v4());
 
     let x_min = -(chunk.bounds.padding as isize);
     let x_max = (chunk.bounds.width + chunk.bounds.padding) as isize;
@@ -141,7 +142,7 @@ fn is_complete() {
 
 #[test]
 fn set_get_set_get_test() {
-    let mut chunk: Chunk = Chunk::new(10, 10, 20, 10, 1);
+    let mut chunk: Chunk = Chunk::new(10, 10, 20, 10, 1, Uuid::new_v4());
 
     // chunk.init_chunk_tile(9, 9, 99);
     let _ = chunk.set_at(9, 9, 101);
