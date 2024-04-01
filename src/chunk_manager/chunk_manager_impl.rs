@@ -94,8 +94,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // create the owned values vector
         let mut owned_values = Vec::<T>::with_capacity(width * height * layer_count);
 
-        #[cfg(debug_assertions)]
-        println!("reserved space: {}", width * height * layer_count);
+        // #[cfg(debug_assertions)]
+        log::info!("reserved space: {}", width * height * layer_count);
 
         // create the layers
         let (layers, out_of_bounds_value_index) = ChunkManager::init_layers(
@@ -338,7 +338,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     pub(crate) fn print_debug_layer_indices(&self, with_padding: bool) {
-        println!("ChunkManager [{}]", self.get_unique_id(true));
+        log::info!("ChunkManager [{}]", self.get_unique_id(true));
 
         for layer_rc in &self.layers {
             let mut layer_opt = layer_rc.borrow_mut();
@@ -354,7 +354,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     pub(crate) fn print_debug_layer_values(&self, with_padding: bool) {
-        println!("ChunkManager: [{}]", self.get_unique_id(true));
+        log::info!("ChunkManager: [{}]", self.get_unique_id(true));
 
         let layer_bounds = {
             let mut lbs = Vec::with_capacity(self.layers.len());
@@ -377,26 +377,27 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             let (x_min, y_min, x_max, y_max) = *print_bounds;
             // let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds;
 
-            println!();
+            log::info!("");
 
-            println!("Layer: [{layer_id}]:[{layer_guid}] - VALUES");
-            println!();
+            log::info!("Layer: [{layer_id}]:[{layer_guid}] - VALUES");
+            log::info!("");
 
             for y in y_min..y_max {
+                let mut row:String = String::new();
                 for x in x_min..x_max {
                     let result = self.get_at(x, y, layer_id);
                     match result {
                         Err(_) => {
-                            print!("-- ");
+                            row.push_str("-- ");
                         }
                         Ok(t) => {
-                            print!("{t:?} ");
+                            row.push_str(format!("{t:?} ").as_str());
                         }
                     }
                 }
-                println!();
+                log::info!("{row}");
             }
-            println!();
+            log::info!("");
         }
     }
 
@@ -438,7 +439,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let layer0_chunk = layer0_chunks.get(&0).expect("No parent chunk found.");
         let incomplete_count = layer0_chunk.get_unset_tile_count();
         let total_count = width * height;
-        println!("incomplete: {incomplete_count}/{total_count}");
+        log::info!("incomplete: {incomplete_count}/{total_count}");
         assert!(layer0_chunk.is_complete());
     }
 }

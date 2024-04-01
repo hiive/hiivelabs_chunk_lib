@@ -1,7 +1,9 @@
 use crate::bounds::Bounds;
+use crate::test_utils::setup_test_logger;
 
 #[test]
 fn test_get_index_for_coords_within_bounds() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -26,6 +28,7 @@ fn test_get_index_for_coords_within_bounds() {
 #[test]
 #[should_panic(expected = "Chunk coordinates are out of bounds")]
 fn test_get_index_for_coords_out_of_bounds_panic() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -45,6 +48,7 @@ fn test_get_index_for_coords_out_of_bounds_panic() {
 
 #[test]
 fn test_get_index_for_coords_out_of_bounds_no_panic() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -67,6 +71,7 @@ fn test_get_index_for_coords_out_of_bounds_no_panic() {
 
 #[test]
 fn test_is_in_bounds_limits() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -129,6 +134,7 @@ fn test_is_in_bounds_limits() {
 
 #[test]
 fn test_is_in_bounds_false() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -145,6 +151,7 @@ fn test_is_in_bounds_false() {
 
 #[test]
 fn test_get_index_for_coords_with_padding() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -171,6 +178,7 @@ fn test_get_index_for_coords_with_padding() {
 
 #[test]
 fn coordinates_within_padding_are_in_bounds() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,
@@ -204,6 +212,7 @@ fn coordinates_within_padding_are_in_bounds() {
 
 #[test]
 fn coordinates_outside_padding_are_out_of_bounds() {
+    setup_test_logger();
     let bounds = Bounds {
         x: 0,
         y: 0,

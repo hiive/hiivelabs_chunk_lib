@@ -5,6 +5,8 @@ mod chunk_manager;
 mod random;
 mod tilemap_datasource;
 
+mod test_utils;
+
 pub mod prelude {
     // exports
     pub use crate::chunk_manager::ChunkManager;

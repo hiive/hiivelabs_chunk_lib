@@ -1,8 +1,10 @@
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use uuid::Uuid;
+use crate::test_utils::setup_test_logger;
 
 #[test]
 fn test_is_chunk_border_coord() {
+    setup_test_logger();
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
@@ -13,6 +15,7 @@ fn test_is_chunk_border_coord() {
 
 #[test]
 fn test_tile_coords_to_chunk_coords() {
+    setup_test_logger();
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
@@ -22,6 +25,7 @@ fn test_tile_coords_to_chunk_coords() {
 
 #[test]
 fn test_chunk_coords_to_tile_coords() {
+    setup_test_logger();
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
@@ -31,6 +35,7 @@ fn test_chunk_coords_to_tile_coords() {
 
 #[test]
 fn test_get_chunk_indices_for_tile_coords() {
+    setup_test_logger();
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
@@ -60,13 +65,13 @@ fn test_get_chunk_indices_for_tile_coords() {
     // at the top right boundary
     let indices = layer.get_chunk_indices_for_tile_coords(20, 0);
     assert_eq!(indices.len(), 1);
-    println!("{indices:?}");
+    log::info!("{indices:?}");
     assert!(indices.contains(&(1, (1, 0))));
 
     // at the bottom left boundary
     let indices = layer.get_chunk_indices_for_tile_coords(0, 20);
     assert_eq!(indices.len(), 1);
-    println!("{indices:?}");
+    log::info!("{indices:?}");
     assert!(indices.contains(&(2, (0, 1))));
 
     // out of bounds (-ve)
@@ -80,14 +85,14 @@ fn test_get_chunk_indices_for_tile_coords() {
     // Directly within a chunk
     let indices = layer.get_chunk_indices_for_tile_coords(11, 11);
     assert_eq!(indices.len(), 1);
-    println!("{indices:?}");
+    log::info!("{indices:?}");
     assert!(indices.contains(&(3, (1, 1))));
 
     // On a chunk boundary
     let indices = layer.get_chunk_indices_for_tile_coords(10, 10);
     // assert_eq!(main_chunk, main_chunk_2);
     assert_eq!(indices.len(), 4); // Expect multiple indices due to boundary condition
-    println!("{indices:?}");
+    log::info!("{indices:?}");
     assert!(indices.contains(&(0, (0, 0))));
     assert!(indices.contains(&(1, (1, 0))));
     assert!(indices.contains(&(2, (0, 1))));
@@ -96,13 +101,14 @@ fn test_get_chunk_indices_for_tile_coords() {
     // on a left edge
     let indices = layer.get_chunk_indices_for_tile_coords(10, 0);
     assert_eq!(indices.len(), 2);
-    println!("{indices:?}");
+    log::info!("{indices:?}");
     assert!(indices.contains(&(0, (0, 0))));
     assert!(indices.contains(&(1, (1, 0))));
 }
 
 #[test]
 fn test_set_and_get_top_layer_failing_case() {
+    setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
@@ -113,7 +119,7 @@ fn test_set_and_get_top_layer_failing_case() {
     let y = 7;
     let value: TIndex = (x + y) as TIndex;
 
-    println!("{x}, {y}");
+    log::trace!("{x}, {y}");
 
     let _ = layer.set_at(x, y, value);
     let r_value = layer.get_at(x, y).expect("Value should be set");
@@ -123,6 +129,7 @@ fn test_set_and_get_top_layer_failing_case() {
 
 #[test]
 fn test_set_and_get_top_layer() {
+    setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
@@ -133,7 +140,7 @@ fn test_set_and_get_top_layer() {
         let y = layer.tile_bounds.height as isize - (i + 1);
         let value: TIndex = (x + y) as TIndex;
 
-        println!("{x}, {y}");
+        log::trace!("{x}, {y}");
 
         let _ = layer.set_at(x, y, value);
         let r_value = layer.get_at(x, y).expect("Value should be set");
@@ -147,6 +154,7 @@ fn test_set_and_get_top_layer() {
 
 #[test]
 fn test_boundary_chunk_values_set() {
+    setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
@@ -159,21 +167,21 @@ fn test_boundary_chunk_values_set() {
     let indices = layer.get_chunk_indices_for_tile_coords(x, y);
     // assert_eq!(main_chunk, main_chunk_2);
     // assert_eq!(indices.len(), 4); // Expect multiple indices due to boundary condition
-    println!("{indices:?}");
+    log::trace!("{indices:?}");
 
-    println!("Query coords: ({x}, {y})");
+    log::info!("Query coords: ({x}, {y})");
     for (ix, _) in &indices {
         let mut chunks_ref = layer.chunks.borrow_mut();
         let chunk = chunks_ref.get(ix).unwrap();
         let usc = chunk.get_unset_tile_count();
         let wh = chunk.bounds.get_tile_count(true);
         let vf = chunk.get_at(x, y).expect("should be set!");
-        println!("{usc}/{wh} : {vf}");
+        log::trace!("{usc}/{wh} : {vf}");
         assert_eq!(usc, wh - 1);
         assert_eq!(vf, 2);
         let (ox, oy) = (chunk.bounds.x, chunk.bounds.y);
         let (xx, yy) = chunk.bounds.get_adjusted_coordinates(x, y);
-        println!("Chunk [{ix}] Origin: ({ox}, {oy}),  Adjusted (x, y): ({xx}, {yy})");
+        log::info!("Chunk [{ix}] Origin: ({ox}, {oy}),  Adjusted (x, y): ({xx}, {yy})");
         assert_eq!(chunk.get_at(x - 1, y), None);
     }
 

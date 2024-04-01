@@ -547,10 +547,10 @@ impl ChunkLayer {
     pub(crate) fn print_debug(&mut self, with_padding: bool) {
         let id = self.layer_id;
         let unique_id = self.get_unique_id(true);
-        println!();
+        log::info!("");
 
-        println!("Layer: [{id}]:[{unique_id}] - INDICES");
-        println!();
+        log::info!("Layer: [{id}]:[{unique_id}] - INDICES");
+        log::info!("");
 
         let bb = (
             0,
@@ -558,15 +558,16 @@ impl ChunkLayer {
             self.tile_bounds.width as isize,
             self.tile_bounds.height as isize,
         );
-        println!("(x, y, w, h) = {bb:?}");
+        log::trace!("(x, y, w, h) = {bb:?}");
 
         let (x_min, y_min, x_max, y_max) = self.tile_bounds.get_bound_coords(with_padding);
-        println!(
+        log::trace!(
             "(x_min, y_min, x_max, y1) = {:?}",
             (x_min, y_min, x_max, y_max)
         );
 
         for y in y_min..y_max {
+            let mut row:String = String::new();
             for x in x_min..x_max {
                 // let oob = false; //x < cropped_x_min || x >= cropped_x_max || y < cropped_y_min || y >= cropped_y_max;
                 // let ov = if oob { None } else { self.get_at(x, y) };
@@ -575,25 +576,25 @@ impl ChunkLayer {
                 match ov {
                     None => {
                         if xb || yb {
-                            print!(".. ");
+                            row.push_str(".. ");
                         } else {
-                            print!("-- ");
+                            row.push_str("-- ");
                         }
                     }
                     Some(v) => {
                         let v = (v % 256) as u8;
 
                         if xb || yb {
-                            print!("{v:02x} ");
+                            row.push_str(std::format!("{v:02x} ").as_str());
                         } else {
-                            print!("{v:02X} ");
+                            row.push_str(std::format!("{v:02X} ").as_str());
                         }
                     }
                 }
             }
-            println!();
+            log::info!("{row}");
         }
-        println!();
+        log::info!("");
     }
 
     pub(crate) fn convert_to_parent_layer_tile_coordinates(
