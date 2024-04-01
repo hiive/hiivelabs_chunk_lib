@@ -1,5 +1,5 @@
-use crate::ChunkManager;
-use crate::TileMapDataSource;
+use crate::prelude::ChunkManager;
+use crate::prelude::TileMapDataSource;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::fmt;

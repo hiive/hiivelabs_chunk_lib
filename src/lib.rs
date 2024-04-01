@@ -2,9 +2,11 @@ mod bounds;
 mod chunk;
 mod chunk_layer;
 mod chunk_manager;
-mod tilemap_datasource;
 mod random;
+mod tilemap_datasource;
 
-// exports
-pub use chunk_manager::ChunkManager;
-pub use tilemap_datasource::TileMapDataSource;
+pub mod prelude {
+    // exports
+    pub use crate::chunk_manager::ChunkManager;
+    pub use crate::tilemap_datasource::TileMapDataSource;
+}

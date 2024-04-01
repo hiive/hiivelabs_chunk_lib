@@ -7,7 +7,6 @@ use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
 use crate::tilemap_datasource::TileMapDataSource;
 
-
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
 pub struct ChunkManager<T> {
@@ -82,8 +81,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let is_new = guid.is_none(); //todo - use this to determine whether to look in storage
         let _is_new = is_new; // temp
 
-        let guid_bytes  = guid.unwrap_or(Uuid::new_v4()).as_bytes().to_owned();
-
+        let guid_bytes = guid.unwrap_or(Uuid::new_v4()).as_bytes().to_owned();
 
         // let's calculate a reasonable starting capacity for the owned_values vector.
         // For the top layer, we can expect the entire capacity to be needed.
@@ -131,7 +129,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// Use as follows:
     /// ```no_run
-    /// # use chunk_lib::ChunkManager;
+    /// # use chunk_lib::prelude::ChunkManager;
     /// # let chunk_manager: ChunkManager<u8>;
     /// // assume an initialized chunk manager with at least 4 layers
     /// let bounds_result = chunk_manager.get_bounds_for_layer(3, false);
@@ -364,7 +362,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 let layer = layer_opt.as_mut().unwrap();
                 let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
                 let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
-                lbs.push((print_bounds, cropped_bounds, Uuid::from_bytes(layer.guid_bytes)));
+                lbs.push((
+                    print_bounds,
+                    cropped_bounds,
+                    Uuid::from_bytes(layer.guid_bytes),
+                ));
             }
             lbs
         };

@@ -6,7 +6,7 @@ fn test_is_chunk_border_coord() {
     let oob: Option<TIndex> = Some(0);
     let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes,32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 10, 10, 1, 10, 10, oob);
     assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
     assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
 }

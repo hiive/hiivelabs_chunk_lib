@@ -13,7 +13,14 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub(crate) fn new(x: isize, y: isize, width: usize, height: usize, padding: usize, chunk_guid: Uuid) -> Self {
+    pub(crate) fn new(
+        x: isize,
+        y: isize,
+        width: usize,
+        height: usize,
+        padding: usize,
+        chunk_guid: Uuid,
+    ) -> Self {
         let chunk_width = width + 2 * padding;
         let chunk_height = height + 2 * padding;
         let tiles = {
@@ -36,7 +43,7 @@ impl Chunk {
             chunk_width,
             chunk_height,
             tiles,
-            guid_bytes
+            guid_bytes,
         }
     }
 
@@ -68,8 +75,7 @@ impl Chunk {
     fn get_by_index(&self, ix: isize) -> Option<TIndex> {
         if ix >= self.tiles.len() as isize {
             None
-        }
-        else {
+        } else {
             self.tiles[ix as usize]
         }
     }

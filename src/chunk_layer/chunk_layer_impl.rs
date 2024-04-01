@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
-use crate::chunk_manager::{create_seed_from_guid_x_y, create_seed_from_guid_bytes_x_y};
+use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
 
 pub type TIndex = usize;
 
@@ -33,7 +33,7 @@ impl ChunkLayer {
     pub fn new(
         parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
         layer_id: usize,
-        layer_guid_bytes: [u8;16],
+        layer_guid_bytes: [u8; 16],
         layer_chunk_lru_cache_size: u32,
         width_in_chunks: usize,
         height_in_chunks: usize,
@@ -398,14 +398,18 @@ impl ChunkLayer {
 
                     // #[cfg(debug_assertions)]
                     // println!("ChunkLayer::ensure_chunk_exists: chunk_coords_to_tile_coords: ({cx}, {cy}) -> ({c_tx}, {c_ty})");
-                    let guid = Uuid::from_bytes(create_seed_from_guid_bytes_x_y(&self.guid_bytes, c_tx, c_ty));
+                    let guid = Uuid::from_bytes(create_seed_from_guid_bytes_x_y(
+                        &self.guid_bytes,
+                        c_tx,
+                        c_ty,
+                    ));
                     let new_chunk = Chunk::new(
                         c_tx,
                         c_ty,
                         self.chunk_width_in_tiles,
                         self.chunk_height_in_tiles,
                         self.tile_bounds.padding,
-                        guid
+                        guid,
                     );
                     if chunks.len() == self.layer_chunk_lru_cache_size as usize {
                         // the cache is full.
