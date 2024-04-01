@@ -31,7 +31,7 @@ pub(crate) fn create_seed_from_guid_bytes_x_y(
 }
 
 pub(crate) fn create_seed_from_bytes(byte_vec: Vec<u8>) -> [u8; 16] {
-    // Create a Blake2b512 hasher and input the GUID, x, and y bytes
+    // Create a Blake2bVar hasher and input the byte vector.
     let mut hasher = Blake2bVar::new(16).unwrap();
     hasher.update(byte_vec.as_ref());
     let mut seed = [0u8; 16];

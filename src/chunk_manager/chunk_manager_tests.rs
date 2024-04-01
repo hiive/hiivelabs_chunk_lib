@@ -6,6 +6,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::time::Instant;
 use uuid::Uuid;
+use hiivelabs_storage_lib::prelude::UniqueId;
 
 const RED: &str = "\x1b[31m";
 const GREEN: &str = "\x1b[32m";
@@ -238,6 +239,14 @@ fn test_zero_layer_count_height() {
 }
 
 #[test]
+fn test_unique_id() {
+        let guid = Some(Uuid::parse_str("a375ab7d-8219-4416-a927-c94511a3689c").unwrap());
+        let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
+        let uid = cm.get_unique_id(true);
+        println!("Unique Id: [{uid}]");
+        assert_eq!(uid, "cm-216b5c86-d2bd-72b0-8225-e3d83c7b6c68!m");
+}
+#[test]
 fn test_can_get_from_non_zero_layer() {
     let guid = Some(Uuid::parse_str("a375ab7d-8219-4416-a927-c94511a3689b").unwrap());
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
@@ -291,4 +300,10 @@ fn test_can_get_from_non_zero_layer() {
     cm.print_debug_layer_indices(true);
 
     cm.print_debug_layer_values(true);
+
+    // ChunkManager: [manager_da1ea0e2-cd27-6636-0cc8-d8ce3907b8a5!m]
+    // Layer: [0]:[layer_7ff3bba6-6731-e753-7a27-fd10caddb999!m] - VALUES
+    // Layer: [1]:[layer_33fc7b80-e69f-0b90-18ca-dd7d09624192!m] - VALUES
+    // Layer: [2]:[layer_2a6ad74a-654c-a84d-3afd-0f03f53dc2df!m] - VALUES
+    // Layer: [3]:[layer_184ce058-9441-5253-387c-2f7c95821aff!m] - VALUES
 }

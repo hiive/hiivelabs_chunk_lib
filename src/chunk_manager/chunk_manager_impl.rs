@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
+use hiivelabs_storage_lib::prelude::UniqueId;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
@@ -26,7 +27,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// # Arguments
     ///
-    /// * `source`: The source data for the top level map, implementing the [`crate::TileMapDataSource<T>`] trait.
+    /// * `source`: The source data for the top level map, implementing the [`TileMapDataSource<T>`] trait.
     /// * `layer_count`: The number of detail layers to procedurally generate.
     ///                  Each layer is four times the area of the previous layer.
     ///                  The `source` data is copied into layer `0`.
@@ -128,9 +129,9 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     /// Return `Ok(x_min, y_min, x_max, y_max)`.
     ///
     /// Use as follows:
-    /// ```no_run
-    /// # use chunk_lib::prelude::ChunkManager;
-    /// # let chunk_manager: ChunkManager<u8>;
+    /// ```ignore
+    /// use chunk_lib::prelude::ChunkManager;
+    /// let chunk_manager: ChunkManager<u8> = [... initialize chunk manager here ...];
     /// // assume an initialized chunk manager with at least 4 layers
     /// let bounds_result = chunk_manager.get_bounds_for_layer(3, false);
     /// if let(Ok((x_min, x_max, y_min, y_max))) = bounds_result {
@@ -337,7 +338,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     pub(crate) fn print_debug_layer_indices(&self, with_padding: bool) {
-        println!("ChunkManager [{}]", Uuid::from_bytes(self.guid_bytes));
+        println!("ChunkManager [{}]", self.get_unique_id(true));
 
         for layer_rc in &self.layers {
             let mut layer_opt = layer_rc.borrow_mut();
@@ -353,7 +354,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     }
 
     pub(crate) fn print_debug_layer_values(&self, with_padding: bool) {
-        println!("ChunkManager: [{}]", Uuid::from_bytes(self.guid_bytes));
+        println!("ChunkManager: [{}]", self.get_unique_id(true));
 
         let layer_bounds = {
             let mut lbs = Vec::with_capacity(self.layers.len());
@@ -365,7 +366,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 lbs.push((
                     print_bounds,
                     cropped_bounds,
-                    Uuid::from_bytes(layer.guid_bytes),
+                    layer.get_unique_id(true),
                 ));
             }
             lbs

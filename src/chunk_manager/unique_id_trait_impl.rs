@@ -1,0 +1,19 @@
+use std::any::type_name;
+use uuid::Uuid;
+use hiivelabs_storage_lib::prelude::UniqueId;
+use crate::chunk_manager::create_seed_from_bytes;
+use crate::prelude::ChunkManager;
+
+impl<T> UniqueId for ChunkManager<T> {
+    fn get_unique_id(&self, mangle:bool) -> String {
+        let guid = Uuid::from_bytes(self.guid_bytes);
+        let t_name = type_name::<T>();
+        let t_name = t_name.split("::").last().unwrap_or(t_name).to_string();
+        let mut id = format!("{guid}_{t_name}");
+        if mangle {
+            let mangled = Uuid::from_bytes(create_seed_from_bytes(id.as_bytes().to_vec())).to_string();
+            id = format!("{mangled}!m");
+        }
+        format!("cm-{id}")
+    }
+}

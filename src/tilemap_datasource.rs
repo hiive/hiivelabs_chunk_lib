@@ -1,3 +1,3 @@
-mod tilemap_datasource_impl;
+mod tilemap_datasource_trait;
 
-pub use tilemap_datasource_impl::TileMapDataSource;
+pub use tilemap_datasource_trait::TileMapDataSource;

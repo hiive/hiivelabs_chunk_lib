@@ -1,6 +1,7 @@
+use crate::prelude::ChunkManager;
 ///
 /// This trait must be implemented by your datasource.
-/// It is consumed by the [`crate::ChunkManager<T>::new()`] method.
+/// It is consumed by the [`ChunkManager<T>::new()`] method.
 pub trait TileMapDataSource<T> {
     /// Returns the width of the tilemap.
     fn width(&self) -> usize;

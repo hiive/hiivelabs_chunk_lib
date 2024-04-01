@@ -5,6 +5,7 @@ use miniz_oxide::deflate::compress_to_vec;
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
 use uuid::Uuid;
+use hiivelabs_storage_lib::prelude::UniqueId;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
@@ -545,10 +546,10 @@ impl ChunkLayer {
 
     pub(crate) fn print_debug(&mut self, with_padding: bool) {
         let id = self.layer_id;
-        let guid = Uuid::from_bytes(self.guid_bytes);
+        let unique_id = self.get_unique_id(true);
         println!();
 
-        println!("Layer: [{id}]:[{guid}] - INDICES");
+        println!("Layer: [{id}]:[{unique_id}] - INDICES");
         println!();
 
         let bb = (

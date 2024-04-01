@@ -145,6 +145,40 @@ fn test_set_and_get_top_layer() {
     }
 }
 
+#[test]
+fn test_boundary_chunk_values_set() {
+    let prev_layer = ChunkLayer::make_layer_rc(None);
+    let oob: Option<TIndex> = Some(0);
+    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 2, 2, 1, 4, 4, oob);
+
+    let x = 4;
+    let y = 4;
+    // set at the point where 4 chunks overlap
+    let _ = layer.set_at(x, y, 2);
+    let indices = layer.get_chunk_indices_for_tile_coords(x, y);
+    // assert_eq!(main_chunk, main_chunk_2);
+    // assert_eq!(indices.len(), 4); // Expect multiple indices due to boundary condition
+    println!("{indices:?}");
+
+    println!("Query coords: ({x}, {y})");
+    for (ix, _) in &indices {
+        let mut chunks_ref = layer.chunks.borrow_mut();
+        let chunk = chunks_ref.get(ix).unwrap();
+        let usc = chunk.get_unset_tile_count();
+        let wh = chunk.bounds.get_tile_count(true);
+        let vf = chunk.get_at(x, y).expect("should be set!");
+        println!("{usc}/{wh} : {vf}");
+        assert_eq!(usc, wh - 1);
+        assert_eq!(vf, 2);
+        let (ox, oy) = (chunk.bounds.x, chunk.bounds.y);
+        let (xx, yy) = chunk.bounds.get_adjusted_coordinates(x, y);
+        println!("Chunk [{ix}] Origin: ({ox}, {oy}),  Adjusted (x, y): ({xx}, {yy})");
+        assert_eq!(chunk.get_at(x - 1, y), None);
+    }
+
+}
+
 // #[test]
 // fn test_set_and_get_layer1() {
 //     let mut layer0 = ChunkLayer::new(ChunkLayer::make_layer_rc(None),

@@ -97,10 +97,10 @@ dependencies = [
  "bitcode",
  "blake2",
  "hecs",
+ "hiivelabs_storage_lib",
  "miniz_oxide",
  "rand",
  "rand_core",
- "rusqlite",
  "schnellru",
  "smallvec",
  "uuid",
@@ -198,6 +198,9 @@ dependencies = [
 [[package]]
 name = "hiivelabs_storage_lib"
 version = "0.1.0"
+dependencies = [
+ "rusqlite",
+]
 
 [[package]]
 name = "libc"

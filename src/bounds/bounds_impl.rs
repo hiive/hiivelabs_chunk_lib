@@ -27,7 +27,7 @@ impl Bounds {
         let padding = self.padding as isize;
         let width = self.width as isize;
         let height = self.height as isize;
-        let (adj_x, adj_y) = (x + padding - self.x, y + padding - self.y);
+        let (adj_x, adj_y) = self.get_adjusted_coordinates(x, y);
 
         // #[cfg(debug_assertions)]
         // {
@@ -50,6 +50,12 @@ impl Bounds {
         Ok((adj_y * padded_width + adj_x, adj_x, adj_y))
     }
 
+    pub(crate) fn get_adjusted_coordinates(&self, x:isize, y:isize) -> (isize, isize)
+    {
+        let padding = self.padding as isize;
+        (x + padding - self.x, y + padding - self.y)
+    }
+
     pub(crate) fn get_bound_coords(&self, include_padding: bool) -> (isize, isize, isize, isize) {
         let padding = if include_padding {
             self.padding as isize
@@ -67,6 +73,18 @@ impl Bounds {
         let max_y = min_y + padded_height;
 
         (min_x, min_y, max_x, max_y)
+    }
+
+    pub(crate) fn get_tile_count(&self, include_padding: bool) -> usize {
+        let padding = if include_padding {
+            self.padding
+        } else {
+            0
+        };
+
+        let padded_width = self.width + 2 * padding;
+        let padded_height = self.height + 2 * padding;
+        padded_width * padded_height
     }
 
     pub(crate) fn is_coords_in_bounds(&self, tx: isize, ty: isize, with_padding: bool) -> bool {
