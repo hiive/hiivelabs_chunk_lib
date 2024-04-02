@@ -1,8 +1,8 @@
+use hiivelabs_storage_lib::prelude::UniqueId;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
-use hiivelabs_storage_lib::prelude::UniqueId;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
@@ -45,7 +45,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// * `guid`: The guid for this chunk manager. If none is provided, one will be generated.
     ///           This is used as an identifier for serialization/deserialization.
-    /// Returns: `ChunkManager<T>` initialized with the `source` data.
+    ///
+    /// returns: [`ChunkManager<T>`] initialized with the `source` data.
     pub fn new(
         source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
@@ -126,7 +127,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     /// * `x`: The requested layer `z`.
     /// * `include_padding`: `true` to include padding.
     ///
-    /// Return `Ok(x_min, y_min, x_max, y_max)`.
+    /// returns: [`Result`],
+    /// structured as `Ok(x_min: isize, y_min: isize, x_max: isize, y_max: isize)` or `Err(&str)`.
     ///
     /// Use as follows:
     /// ```ignore
@@ -172,7 +174,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     /// * `y`: The _y_ coordinate in the requested layer `z`.
     /// * `z`: The layer to query.
     ///
-    /// Returns `Ok(&T)` if the specified coordinates are in bounds, else `Err(&str)`.
+    /// returns: [`Result`], structured as  `Ok(&T)` if the specified coordinates are in
+    /// bounds, else `Err(&str)`.
     pub fn get_at(&self, x: isize, y: isize, z: usize) -> Result<&T, &str> {
         let some_layer = self.layers.get(z);
 
@@ -194,12 +197,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 }
 
                 match layer.get_at(x, y) {
-                    Some(ix) => {
-                        // if ix >= self.owned_values.len() {
-                        //     return Ok(&self.owned_values[self.out_of_bounds_value_index]);
-                        // }
-                        Ok(&self.owned_values[ix])
-                    }
+                    Some(ix) => Ok(&self.owned_values[ix]),
                     _ => Err("(x, y) coordinates out of bounds"),
                 }
             }
@@ -207,57 +205,57 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         }
     }
 
-    // pub(crate) fn get_top_layer_oob_ix(&self) {
-    //     let top_layer_rc = self.layers.get(0)
-    //         .expect("Error! No top layer rc!");
-    //     let top_layer_opt = top_layer_rc.borrow();
-    //     let oob_ix = top_layer_opt.as_ref()
-    //         .expect("Error! No top layer!")
-    //         .out_of_bounds_value_index
-    //         .expect("Error! No top layer oob value");
-    //     return Ok(&self.owned_values[oob_ix])
-    // }
-
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `x`:
+    /// * `y`:
+    /// * `z`:
+    ///
+    /// returns: ()
+    ///
     pub(crate) fn ensure_layer_chunks_are_complete(&self, x: isize, y: isize, z: usize) {
         if z == 0 {
-            // nothing to do.
+            // nothing to do - the top layer is always complete.
             return;
         }
         // let's build a map of coordinates
+        // for the corresponding tile coordinates in each layer 0 <= z
+        // layer z - 1's coordinates are half of layer z.
         let coord_map: Vec<(isize, isize)> = (0..=z)
             .map(|l| {
                 let ld = (z - l) as u32;
                 let f = 2_isize.pow(ld);
-                // println!("coords: z:{z} - l:{l} = ld:{ld}: ({}, {}, f:{})", x / f, y / f, f);
                 (x / f, y / f)
             })
             .collect();
 
-        // for (ix, (x, y)) in coord_map.iter().enumerate() {
-        //     println!("layer [{ix}], {x}, {y}");
-        // }
-        // println!();
-
-        //return;
-        // we need to traverse down through the layers,
-        // ensuring that the chunk(s) referenced by the coordinates
-        // are complete in each layer.
-        // for layer_id in 1..=z {
+        // iterate through the layers, from 1 to z, ensuring that the specified layer chunk
+        // is complete so it can be used to calculate the next layer corresponding chunk.
         for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
             let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
             let layer_opt = layer_rc.borrow();
             let layer = layer_opt.as_ref().unwrap();
-
-            // println!("layer [{layer_id}] size: [{}, {}]", layer.bounds.width, layer.bounds.height);
-            // let (tx, ty) = coord_map[layer_id];
-            // println!("coords: ({tx}, {ty})");
-            // println!();
-            // let (lw, lh) = (layer.tile_bounds.width, layer.tile_bounds.height);
-            // println!("top level ensure ({tx}, {ty}) layer: {layer_id} : ({lw}, {lh})");
             layer.ensure_chunk_is_complete(*tx, *ty);
         }
     }
 
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `guid`:
+    /// * `owned_values`:
+    /// * `source`:
+    /// * `layer_count`:
+    /// * `layer_chunk_cache_size`:
+    /// * `chunk_width_in_tiles`:
+    /// * `chunk_height_in_tiles`:
+    /// * `chunk_padding_in_tiles`:
+    ///
+    /// returns: (Vec<Rc<RefCell<Option<ChunkLayer>>, Global>, Global>, usize)
+    ///
     fn init_layers(
         guid: &[u8; 16],
         owned_values: &mut Vec<T>,
@@ -288,8 +286,12 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 layer_chunk_padding_in_tiles,
                 layer_default_oob_value,
             ) = {
+                // set up layer initialization parameters
                 if layer_id == 0 {
                     (
+                        // layer 0 is a special case.
+                        // it only has one chunk, and it's the same size as
+                        // the source map.
                         source.width(),
                         source.height(),
                         1,
@@ -299,6 +301,9 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                     )
                 } else {
                     (
+                        // layers 1 to layer_count are made up of chunks.
+                        // each layer has 4 times the number of chunks as the previous layer.
+                        // chunks are fixed dimensions.
                         f * width_in_chunks,
                         f * height_in_chunks,
                         chunk_width_in_tiles,
@@ -309,6 +314,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 }
             };
 
+            // create the layer
             let mut current_layer = ChunkLayer::new(
                 Rc::clone(&prev_layer),
                 layer_id,
@@ -322,22 +328,29 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 layer_default_oob_value,
             );
 
-            // if we're on the top layer, populate it with the map data
             if layer_id == 0 {
-                // build the map of vec index to (x, y) to drain the vector
+                // if we're on the top layer, populate it with the source map data
                 Self::populate_top_layer_from_source(owned_values, &mut source, &mut current_layer);
             }
-            // set up prev layer for the next iteration
+            // set prev layer to current layer for the next iteration
             prev_layer = ChunkLayer::make_layer_rc(Some(current_layer));
             // prev layer actually contains the current layer at this point,
             // so add it to the layer vector
             layers.push(Rc::clone(&prev_layer));
         }
-
+        // return the layer collection, and the index of the layer 0 OOB tile.
         (layers, out_of_bounds_value_index)
     }
 
-    pub(crate) fn print_debug_layer_indices(&self, with_padding: bool) {
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `with_padding`:
+    ///
+    /// returns: ()
+    ///
+    pub(crate) fn log_all_layer_index_diagnostics(&self, with_padding: bool) {
         log::info!("ChunkManager [{}]", self.get_unique_id(true));
 
         for layer_rc in &self.layers {
@@ -347,13 +360,21 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             // for debug printing, replace the old oob value with the layer 0 one
             let old_oob = layer.out_of_bounds_value_index;
             layer.out_of_bounds_value_index = Some(self.out_of_bounds_value_index);
-            layer.print_debug(with_padding);
+            layer.log_diagnostics(with_padding);
             // restore the old value when we're done.
             layer.out_of_bounds_value_index = old_oob;
         }
     }
 
-    pub(crate) fn print_debug_layer_values(&self, with_padding: bool) {
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `with_padding`:
+    ///
+    /// returns: ()
+    ///
+    pub(crate) fn log_all_layer_value_diagnostics(&self, with_padding: bool) {
         log::info!("ChunkManager: [{}]", self.get_unique_id(true));
 
         let layer_bounds = {
@@ -363,11 +384,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 let layer = layer_opt.as_mut().unwrap();
                 let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
                 let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
-                lbs.push((
-                    print_bounds,
-                    cropped_bounds,
-                    layer.get_unique_id(true),
-                ));
+                lbs.push((print_bounds, cropped_bounds, layer.get_unique_id(true)));
             }
             lbs
         };
@@ -375,15 +392,13 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             layer_bounds.iter().enumerate()
         {
             let (x_min, y_min, x_max, y_max) = *print_bounds;
-            // let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds;
 
             log::info!("");
-
             log::info!("Layer: [{layer_id}]:[{layer_guid}] - VALUES");
             log::info!("");
 
             for y in y_min..y_max {
-                let mut row:String = String::new();
+                let mut row: String = String::new();
                 for x in x_min..x_max {
                     let result = self.get_at(x, y, layer_id);
                     match result {
@@ -401,6 +416,16 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         }
     }
 
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `owned_values`:
+    /// * `source`:
+    /// * `current_layer`:
+    ///
+    /// returns: ()
+    ///
     fn populate_top_layer_from_source(
         owned_values: &mut Vec<T>,
         source: &mut Box<dyn TileMapDataSource<T>>,
@@ -409,6 +434,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let width = source.width();
         let height = source.height();
 
+        // build the map of vec index to (x, y) for use when draining the source vector
         let mut ix_map = HashMap::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {
@@ -424,8 +450,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let layer0 = current_layer;
         for (ix, item) in map_data.drain(..).enumerate() {
             let (x, y) = ix_map[&ix];
-
-            // println!("Source: ({x}, {y}): {item:?}");
             // store the value and set the layer coords with the index value
             // for the stored value
             owned_values.push(item);

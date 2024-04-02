@@ -2,15 +2,13 @@ use crate::prelude::ChunkManager;
 use crate::prelude::TileMapDataSource;
 use crate::test_utils::*;
 
+use hiivelabs_storage_lib::prelude::UniqueId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::fmt;
 use std::fmt::Formatter;
 use std::time::Instant;
 use uuid::Uuid;
-use hiivelabs_storage_lib::prelude::UniqueId;
-
-
 
 /// A wrapper around `u8` that implements `Debug` to display the value in hexadecimal.
 #[derive(Clone)]
@@ -259,7 +257,7 @@ fn test_can_get_from_non_zero_layer() {
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
 
     log::info!("[INITIAL]");
-    cm.print_debug_layer_indices(false);
+    cm.log_all_layer_index_diagnostics(false);
 
     let c = 2_isize.pow(4);
     log::info!("Looking at ({c}, {c}, 3)");
@@ -267,7 +265,7 @@ fn test_can_get_from_non_zero_layer() {
     log::info!("test_val: {test_val:02X}");
 
     log::info!("[INTERIM]");
-    cm.print_debug_layer_indices(false);
+    cm.log_all_layer_index_diagnostics(false);
     for l in 0..5 {
         let bounds = cm.get_bounds_for_layer(l, true);
         log::info!("Layer {l} bounds: {bounds:?}");
@@ -304,9 +302,9 @@ fn test_can_get_from_non_zero_layer() {
         }
     }
     log::info!("[FINAL]");
-    cm.print_debug_layer_indices(true);
+    cm.log_all_layer_index_diagnostics(true);
 
-    cm.print_debug_layer_values(true);
+    cm.log_all_layer_value_diagnostics(true);
 
     // ChunkManager: [manager_da1ea0e2-cd27-6636-0cc8-d8ce3907b8a5!m]
     // Layer: [0]:[layer_7ff3bba6-6731-e753-7a27-fd10caddb999!m] - VALUES

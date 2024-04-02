@@ -1,6 +1,6 @@
 use crate::chunk_layer::{ChunkLayer, TIndex};
-use uuid::Uuid;
 use crate::test_utils::setup_test_logger;
+use uuid::Uuid;
 
 #[test]
 fn test_is_chunk_border_coord() {
@@ -184,7 +184,6 @@ fn test_boundary_chunk_values_set() {
         log::info!("Chunk [{ix}] Origin: ({ox}, {oy}),  Adjusted (x, y): ({xx}, {yy})");
         assert_eq!(chunk.get_at(x - 1, y), None);
     }
-
 }
 
 // #[test]

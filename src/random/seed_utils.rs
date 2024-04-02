@@ -1,6 +1,16 @@
 use blake2::digest::{Update, VariableOutput};
 use blake2::Blake2bVar;
 use uuid::Uuid;
+
+///
+///
+/// # Arguments
+///
+/// * `guid`:
+/// * `x`:
+/// * `y`:
+///
+/// returns: [u8; 16]
 pub(crate) fn create_seed_from_guid_x_y(guid: Uuid, x: isize, y: isize) -> [u8; 16] {
     // Convert the GUID and usize values to byte arrays
     let uuid_bytes = guid.as_bytes();
@@ -14,6 +24,15 @@ pub(crate) fn create_seed_from_guid_x_y(guid: Uuid, x: isize, y: isize) -> [u8; 
     create_seed_from_bytes(byte_vec)
 }
 
+///
+///
+/// # Arguments
+///
+/// * `guid_bytes`:
+/// * `x`:
+/// * `y`:
+///
+/// returns: [u8; 16]
 pub(crate) fn create_seed_from_guid_bytes_x_y(
     guid_bytes: &[u8; 16],
     x: isize,
@@ -30,6 +49,13 @@ pub(crate) fn create_seed_from_guid_bytes_x_y(
     create_seed_from_bytes(byte_vec)
 }
 
+///
+///
+/// # Arguments
+///
+/// * `byte_vec`:
+///
+/// returns: [u8; 16]
 pub(crate) fn create_seed_from_bytes(byte_vec: Vec<u8>) -> [u8; 16] {
     // Create a Blake2bVar hasher and input the byte vector.
     let mut hasher = Blake2bVar::new(16).unwrap();
