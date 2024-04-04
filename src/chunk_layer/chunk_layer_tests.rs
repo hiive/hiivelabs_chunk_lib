@@ -186,6 +186,23 @@ fn test_boundary_chunk_values_set() {
     }
 }
 
+#[test]
+fn store_layer_chunk() {
+    setup_test_logger();
+    let prev_layer = ChunkLayer::make_layer_rc(None);
+    let oob: Option<TIndex> = Some(0);
+    let guid_bytes = crate::random::seed_utils::create_seed_from_bytes(vec![1, 16]);
+    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 20, 20, 1, 10, 10, oob);
+
+    let mut count = 0_isize as TIndex;
+    for y in 0..layer.tile_bounds.height as isize {
+        for x in 0..layer.tile_bounds.width as isize {
+            let _ = layer.set_at(x, y, count);
+            count += 1;
+        }
+    }
+}
+
 // #[test]
 // fn test_set_and_get_layer1() {
 //     let mut layer0 = ChunkLayer::new(ChunkLayer::make_layer_rc(None),

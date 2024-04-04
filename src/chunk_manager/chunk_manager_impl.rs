@@ -85,15 +85,19 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         let guid_bytes = guid.unwrap_or(Uuid::new_v4()).as_bytes().to_owned();
 
+        // TODO - check
         // let's calculate a reasonable starting capacity for the owned_values vector.
         // For the top layer, we can expect the entire capacity to be needed.
         // for each subsequent layer, we can expect that 0.25 * ratio of layer area to previous layer
         // is needed. As each subsequent layer has 4 times the area of the previous layer, this
         // is 0.25 * 4 = 1.
-        // so a good amount to reserve will be width * height * layer_count
+        // so the maximum amount to reserve will be width * height * layer_count,
+        // meaning that (assuming no sharing) the owned_values vector will contain
+        // width * height * layer_count instances of T.
 
-        // create the owned values vector
-        let mut owned_values = Vec::<T>::with_capacity(width * height * layer_count);
+        // let's start out with that, and reevaluate as necessary.
+        let owned_values_capacity = width * height * layer_count;
+        let mut owned_values = Vec::<T>::with_capacity(owned_values_capacity);
 
         // #[cfg(debug_assertions)]
         log::info!("reserved space: {}", width * height * layer_count);

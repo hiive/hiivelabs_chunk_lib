@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use hiivelabs_storage_lib::prelude::UniqueId;
-use log::log;
+use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, UniqueId};
 use miniz_oxide::deflate::compress_to_vec;
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
@@ -261,12 +260,18 @@ impl ChunkLayer {
         }
     }
 
-    fn store_chunk(&self, chunk_ix: isize, chunk: Chunk) {
+    pub(crate) fn store_chunk(&self, chunk_ix: isize, chunk: Chunk) {
         // todo - make sure we store sizes in the db
-        let encoded = bitcode::encode(&chunk);
-        let compressed = compress_to_vec(encoded.as_slice(), 6);
-        let _chunk_ix = chunk_ix; // temp
-        let _compressed = compressed;
+        // let encoded = bitcode::encode(&chunk);
+        // let compressed = compress_to_vec(encoded.as_slice(), 6);
+        // let _chunk_ix = chunk_ix; // temp
+        // let _compressed = compressed;
+
+        let storage = SqliteStorageContainer::new("test.db", true).unwrap();
+        let result = storage.save_data_to_package(chunk, true).unwrap();
+        let test = storage.load_data_from_package::<Chunk>(result.as_str());
+        println!("{result}");
+        println!()
     }
 
     pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
