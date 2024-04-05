@@ -126,7 +126,7 @@ fn encode_decode_test() {
         compressed.len()
     );
 
-    let pct_reduction = (1000.0 * compressed.len() as f32 / chunk_mem_size as f32).round() / 10.;
+    let pct_reduction = (1000.0 * compressed.len() as f32 / encoded.len() as f32).round() / 10.;
     log::info!("%ge of original size: {pct_reduction}");
 
     // decompress

@@ -18,26 +18,26 @@ pub(crate) struct HexU8(u8);
 impl fmt::Debug for HexU8 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let color = if self.0 < 128 {
-            CONSOLE_BLUE
+            _CONSOLE_BLUE
         } else if self.0 < 255 {
-            CONSOLE_GREEN
+            _CONSOLE_GREEN
         } else {
-            CONSOLE_BRIGHT_GREEN
+            _CONSOLE_BRIGHT_GREEN
         };
-        write!(f, "{color}{:02x}{CONSOLE_DEFAULT_COLOR}", self.0)
+        write!(f, "{color}{:02x}{_CONSOLE_DEFAULT_COLOR}", self.0)
     }
 }
 
 impl fmt::UpperHex for HexU8 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let color = if self.0 < 128 {
-            CONSOLE_BRIGHT_BLUE
+            _CONSOLE_BRIGHT_BLUE
         } else if self.0 < 255 {
-            CONSOLE_BRIGHT_GREEN
+            _CONSOLE_BRIGHT_GREEN
         } else {
-            CONSOLE_BRIGHT_GREEN
+            _CONSOLE_BRIGHT_GREEN
         };
-        write!(f, "{color}{:02X}{CONSOLE_DEFAULT_COLOR}", self.0)
+        write!(f, "{color}{:02X}{_CONSOLE_DEFAULT_COLOR}", self.0)
     }
 }
 

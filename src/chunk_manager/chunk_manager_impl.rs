@@ -5,7 +5,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
+use crate::chunk_manager::create_seed_from_guid_bytes_x_y;
 use crate::tilemap_datasource::TileMapDataSource;
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
@@ -392,7 +392,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             }
             lbs
         };
-        for (layer_id, (print_bounds, cropped_bounds, layer_guid)) in
+        for (layer_id, (print_bounds, _cropped_bounds, layer_guid)) in
             layer_bounds.iter().enumerate()
         {
             let (x_min, y_min, x_max, y_max) = *print_bounds;

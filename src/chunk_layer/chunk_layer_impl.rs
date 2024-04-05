@@ -2,14 +2,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, UniqueId};
-use miniz_oxide::deflate::compress_to_vec;
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
-use crate::chunk_manager::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
+use crate::chunk_manager::create_seed_from_guid_bytes_x_y;
 
 pub type TIndex = usize;
 
@@ -269,7 +268,8 @@ impl ChunkLayer {
 
         let storage = SqliteStorageContainer::new("test.db", true).unwrap();
         let result = storage.save_data_to_package(chunk, true).unwrap();
-        let test = storage.load_data_from_package::<Chunk>(result.as_str());
+        let _test = storage.load_data_from_package::<Chunk>(result.as_str());
+        let _chunk_ix = chunk_ix;
         println!("{result}");
         println!()
     }

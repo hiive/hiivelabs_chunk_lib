@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod bounds;
 mod chunk;
 mod chunk_layer;
