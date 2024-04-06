@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check out my other private repo
+    - name: Check out hiivelabs_storage_lib
       uses: actions/checkout@v4
       with:
         repository: hiive/hiivelabs_storage_lib
