@@ -15,6 +15,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Check out my other private repo
+      uses: actions/checkout@master
+      with:
+        repository: hiive/hiivelabs_storage_lib
+        token: ${{ secrets.RUST_PAT }}
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose
