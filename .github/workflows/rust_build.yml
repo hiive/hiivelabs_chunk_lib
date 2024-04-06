@@ -3,8 +3,8 @@ name: Rust
 on:
   push:
     branches: [ "development" ]
-#  pull_request:
-#    branches: [ "development" ]
+  pull_request:
+    branches: [ "development" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,8 +20,14 @@ jobs:
       with:
         repository: hiive/hiivelabs_storage_lib
         token: ${{ secrets.RUST_PAT }}
-    - uses: actions/checkout@v4
+        path: workspace/hiivelabs_storage_lib
+    - name: Check out chunk_lib
+      uses: actions/checkout@v4
+      with:
+        path: workspace/chunk_lib
     - name: Build
       run: cargo build --verbose
+      working-directory: ./workspace/chunk_lib
     - name: Run tests
       run: cargo test --verbose
+      working-directory: ./workspace/chunk_lib
