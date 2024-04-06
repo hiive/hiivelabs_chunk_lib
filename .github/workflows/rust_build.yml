@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: Check out my other private repo
-      uses: actions/checkout@4
+      uses: actions/checkout@v4
       with:
         repository: hiive/hiivelabs_storage_lib
         token: ${{ secrets.RUST_PAT }}
