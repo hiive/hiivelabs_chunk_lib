@@ -15,19 +15,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
     - name: Check out hiivelabs_storage_lib
       uses: actions/checkout@v4
       with:
         repository: hiive/hiivelabs_storage_lib
         token: ${{ secrets.RUST_PAT }}
         path: workspace/hiivelabs_storage_lib
+
     - name: Check out chunk_lib
       uses: actions/checkout@v4
       with:
         path: workspace/chunk_lib
+
+    - name: Cache Cargo Registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          workspace/**/target
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-    
+
     - name: Build
       run: cargo build --verbose
       working-directory: ./workspace/chunk_lib
+
     - name: Run tests
       run: cargo test --verbose
       working-directory: ./workspace/chunk_lib
