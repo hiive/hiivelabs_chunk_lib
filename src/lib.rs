@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
+mod random;
 mod bounds;
 mod chunk;
 mod chunk_layer;
-mod chunk_manager;
-mod random;
-mod tilemap_datasource;
+pub mod chunk_manager;
+pub mod tilemap_datasource;
 
+#[cfg(test)]
 mod test_utils;
 
 pub mod prelude {
