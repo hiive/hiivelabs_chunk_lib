@@ -122,7 +122,7 @@ impl ChunkLayer {
         &self,
         tx: isize,
         ty: isize,
-    ) -> SmallVec<[(isize, (isize, isize)); 4]> {
+    ) -> SmallVec<(isize, (isize, isize)), 4> {
         // there are two main possibilities here.
         // 1. It's a chunk boundary, so multiple chunks will be returned.
         // 2. It's within a chunk, so only one chunk will be returned
@@ -200,7 +200,7 @@ impl ChunkLayer {
 
     fn add_boundary_chunk_if_in_bounds(
         &self,
-        chunk_indices: &mut SmallVec<[(isize, (isize, isize)); 4]>,
+        chunk_indices: &mut SmallVec<(isize, (isize, isize)), 4>,
         cx: isize,
         cy: isize,
     ) {
@@ -220,7 +220,7 @@ impl ChunkLayer {
 
     pub(crate) fn ensure_chunk_exists_by_indices(
         &self,
-        chunk_ixs: &SmallVec<[(isize, (isize, isize)); 4]>,
+        chunk_ixs: &SmallVec<(isize, (isize, isize)), 4>,
     ) {
         let mut chunks = self.chunks.borrow_mut();
         for (chunk_ix, (cx, cy)) in chunk_ixs {
