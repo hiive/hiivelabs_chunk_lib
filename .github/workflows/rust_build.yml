@@ -30,7 +30,7 @@ jobs:
         token: ${{ secrets.RUST_PAT }}
         path: workspace/hiivelabs_rand_utils_lib
 
-    - name: Check out chunk_lib
+    - name: Check out hiivelabs_chunk_lib
       uses: actions/checkout@v4
       with:
         path: workspace/hiivelabs_chunk_lib
@@ -46,10 +46,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-registry-    
 
-    - name: Build
+    - name: Build hiivelabs_chunk_lib
       run: cargo build --verbose
       working-directory: ./workspace/hiivelabs_chunk_lib
 
-    - name: Run tests
+    - name: Run tests on hiivelabs_chunk_lib
       run: cargo test --verbose
       working-directory: ./workspace/hiivelabs_chunk_lib
