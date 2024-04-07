@@ -191,7 +191,7 @@ fn store_layer_chunk() {
     setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = crate::random::seed_utils::create_seed_from_bytes(vec![1, 16]);
+    let guid_bytes = hiivelabs_rand_utils_lib::prelude::create_seed_from_bytes(vec![1, 16]);
     let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 20, 20, 1, 10, 10, oob);
 
     let mut count = 0_isize as TIndex;

@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::prelude::create_seed_from_guid_bytes_x_y;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::chunk_manager::create_seed_from_guid_bytes_x_y;
 use crate::tilemap_datasource::TileMapDataSource;
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates

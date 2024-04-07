@@ -5,10 +5,10 @@ use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, U
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::prelude::create_seed_from_guid_bytes_x_y;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
-use crate::chunk_manager::create_seed_from_guid_bytes_x_y;
 
 pub type TIndex = usize;
 

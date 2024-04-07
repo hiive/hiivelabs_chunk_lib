@@ -23,6 +23,13 @@ jobs:
         token: ${{ secrets.RUST_PAT }}
         path: workspace/hiivelabs_storage_lib
 
+    - name: Check out hiivelabs_rand_utils_lib
+      uses: actions/checkout@v4
+      with:
+        repository: hiive/hiivelabs_rand_utils_lib
+        token: ${{ secrets.RUST_PAT }}
+        path: workspace/hiivelabs_rand_utils_lib
+
     - name: Check out chunk_lib
       uses: actions/checkout@v4
       with:
