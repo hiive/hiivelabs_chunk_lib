@@ -30,6 +30,7 @@ impl ChunkLayer {
         Rc::new(RefCell::new(layer))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
         layer_id: usize,

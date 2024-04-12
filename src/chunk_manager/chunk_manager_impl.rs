@@ -260,6 +260,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// returns: (Vec<Rc<RefCell<Option<ChunkLayer>>, Global>, Global>, usize)
     ///
+    #[allow(clippy::too_many_arguments)]
     fn init_layers(
         guid: &[u8; 16],
         owned_values: &mut Vec<T>,
