@@ -1,25 +1,26 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use hiivelabs_rand_utils_lib::prelude::create_seed_from_guid_bytes_x_y;
-use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, UniqueId};
+use hiivelabs_storage_lib::prelude::{UniqueId};
 use schnellru::{ByLength, LruMap};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
+use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
+use crate::chunk_storage::chunk_storage_manager_impl::ChunkStorageManager;
 
 pub type TIndex = usize;
 
 pub struct ChunkLayer {
     pub(crate) layer_id: usize,
-    pub(crate) layer_chunk_lru_cache_size: u32,
     pub(crate) chunk_bounds: Bounds, // this is in chunk-coords
     pub(crate) tile_bounds: Bounds,  // this is in tile-coords
     pub(crate) chunk_width_in_tiles: usize,
     pub(crate) chunk_height_in_tiles: usize,
-    pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
+    // pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
+    pub(crate) chunks: RefCell<ChunkStorageManager>,
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
     pub(crate) guid_bytes: [u8; 16],
@@ -45,17 +46,10 @@ impl ChunkLayer {
     ) -> Self {
         let width_in_tiles = width_in_chunks * chunk_width_in_tiles;
         let height_in_tiles = height_in_chunks * chunk_height_in_tiles;
-        let chunks = {
-            let hashmap_capacity = width_in_chunks * height_in_chunks;
-            let mut hashmap = LruMap::new(ByLength::new(layer_chunk_lru_cache_size));
-            hashmap.reserve_or_panic(hashmap_capacity);
-            RefCell::new(hashmap)
-        };
 
         Self {
             layer_id,
             guid_bytes: layer_guid_bytes,
-            layer_chunk_lru_cache_size,
             chunk_bounds: Bounds {
                 x: 0,
                 y: 0,
@@ -72,7 +66,7 @@ impl ChunkLayer {
             },
             chunk_width_in_tiles,
             chunk_height_in_tiles,
-            chunks,
+            chunks: RefCell::new(ChunkStorageManager::new(layer_chunk_lru_cache_size)),
             parent_layer,
             out_of_bounds_value_index,
         }
@@ -245,34 +239,11 @@ impl ChunkLayer {
                         self.tile_bounds.padding,
                         guid,
                     );
-                    if chunks.len() == self.layer_chunk_lru_cache_size as usize {
-                        // the cache is full.
-                        // pop the oldest
-                        if let Some((ix, oldest_chunk)) = chunks.pop_oldest() {
-                            // need to store this chunk
-                            self.store_chunk(ix, oldest_chunk);
-                        }
-                    }
-                    // insert the new chunk
-                    chunks.insert(*chunk_ix, new_chunk);
+
+                    chunks.insert(chunk_ix, new_chunk);
                 }
             }
         }
-    }
-
-    pub(crate) fn store_chunk(&self, chunk_ix: isize, chunk: Chunk) {
-        // todo - make sure we store sizes in the db
-        // let encoded = bitcode::encode(&chunk);
-        // let compressed = compress_to_vec(encoded.as_slice(), 6);
-        // let _chunk_ix = chunk_ix; // temp
-        // let _compressed = compressed;
-
-        let storage = SqliteStorageContainer::new("test.db", true).unwrap();
-        let result = storage.save_data_to_package(chunk, true).unwrap();
-        let _test = storage.load_data_from_package::<Chunk>(result.as_str());
-        let _chunk_ix = chunk_ix;
-        println!("{result}");
-        println!()
     }
 
     pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
@@ -280,9 +251,9 @@ impl ChunkLayer {
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
         let mut error_count = 0;
+        let mut chunks = self.chunks.borrow_mut();
         for (chunk_ix, _) in chunk_ixs {
-            let mut chunks = self.chunks.borrow_mut();
-            let chunk = chunks.get(&chunk_ix).unwrap(); // we know the chunk exists.
+            let mut chunk = chunks.get(&chunk_ix).unwrap(); // we know the chunk exists.
 
             let result = chunk.set_at(tx, ty, value);
             if result.is_err() {
@@ -397,11 +368,12 @@ impl ChunkLayer {
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
         // iterate through the chunks.
-        let mut chunks = self.chunks.borrow_mut();
+
         // println!();
         for (chunk_ix, _) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
-            let chunk = chunks.get(chunk_ix).unwrap();
+            let mut chunks = self.chunks.borrow_mut();
+            let mut chunk = chunks.get(chunk_ix).unwrap();
             if !chunk.is_complete() {
                 // the chunk has unset tiles, so let's complete it.
                 // todo: see if it's in the disk cache
