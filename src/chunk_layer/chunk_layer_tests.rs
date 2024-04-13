@@ -170,9 +170,9 @@ fn test_boundary_chunk_values_set() {
     log::trace!("{indices:?}");
 
     log::info!("Query coords: ({x}, {y})");
-    for (ix, _) in &indices {
+    for (ix, (cx, cy)) in &indices {
         let mut chunks_ref = layer.chunks.borrow_mut();
-        let chunk = chunks_ref.get(ix).unwrap();
+        let chunk = chunks_ref.get(*cx, *cy).unwrap();
         let usc = chunk.get_unset_tile_count();
         let wh = chunk.bounds.get_tile_count(true);
         let vf = chunk.get_at(x, y).expect("should be set!");

@@ -465,7 +465,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         }
         // sanity check
         let mut layer0_chunks = layer0.chunks.borrow_mut();
-        let layer0_chunk = layer0_chunks.get(&0).expect("No parent chunk found.");
+        let layer0_chunk = layer0_chunks.get(0, 0).expect("No parent chunk found.");
         let incomplete_count = layer0_chunk.get_unset_tile_count();
         let total_count = width * height;
         log::info!("incomplete: {incomplete_count}/{total_count}");

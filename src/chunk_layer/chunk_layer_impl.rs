@@ -85,6 +85,20 @@ impl ChunkLayer {
         Some(ix)
     }
 
+    pub(crate) fn get_chunk_coords_for_hash_index(&self, hash_index: isize) -> Option<(isize, isize)> {
+        // Check if the index is within the valid range
+        let width = self.chunk_bounds.width as isize;
+        let height = self.chunk_bounds.height as isize;
+        if hash_index < 0 || hash_index >= width * height {
+            return None;
+        }
+
+        let cx = hash_index % width;
+        let cy = hash_index / width;
+
+        Some((cx, cy))
+    }
+
     pub(crate) fn is_chunk_border_coord(&self, tx: isize, ty: isize) -> (bool, bool) {
         (
             // has to be inside outer bounds, and also within padding between chunks
@@ -219,7 +233,7 @@ impl ChunkLayer {
     ) {
         let mut chunks = self.chunks.borrow_mut();
         for (chunk_ix, (cx, cy)) in chunk_ixs {
-            match chunks.get(chunk_ix) {
+            match chunks.get(*cx, *cy) {
                 Some(_) => {
                     // already exists. No action required.
                 }
@@ -240,7 +254,7 @@ impl ChunkLayer {
                         guid,
                     );
 
-                    chunks.insert(chunk_ix, new_chunk);
+                    chunks.insert(*cx, *cy, new_chunk);
                 }
             }
         }
@@ -252,8 +266,8 @@ impl ChunkLayer {
 
         let mut error_count = 0;
         let mut chunks = self.chunks.borrow_mut();
-        for (chunk_ix, _) in chunk_ixs {
-            let mut chunk = chunks.get(&chunk_ix).unwrap(); // we know the chunk exists.
+        for (chunk_ix, (cx, cy)) in chunk_ixs {
+            let mut chunk = chunks.get(cx, cy).unwrap(); // we know the chunk exists.
 
             let result = chunk.set_at(tx, ty, value);
             if result.is_err() {
@@ -281,8 +295,10 @@ impl ChunkLayer {
         let opt_chunk_idx = self.get_first_chunk_index_at_tile_coords(tx, ty);
         match opt_chunk_idx {
             Some(chunk_idx) => {
+                let (cx, cy) = self.get_chunk_coords_for_hash_index(chunk_idx)
+                    .expect("Invalid chunk index!"); // should be always good
                 let mut chunks = self.chunks.borrow_mut();
-                let chunk = chunks.get(&chunk_idx);
+                let chunk = chunks.get(cx, cy);
 
                 match chunk {
                     Some(chunk) => chunk.get_at(tx, ty),
@@ -302,8 +318,10 @@ impl ChunkLayer {
         let opt_chunk_idx = self.get_first_chunk_index_at_tile_coords(tx, ty);
         match opt_chunk_idx {
             Some(chunk_idx) => {
+                let (cx, cy) = self.get_chunk_coords_for_hash_index(chunk_idx)
+                    .expect("Invalid chunk index!"); // should be always good
                 let mut chunks = self.chunks.borrow_mut();
-                let chunk = chunks.get(&chunk_idx);
+                let chunk = chunks.get(cx, cy);
 
                 match chunk {
                     Some(chunk) => chunk.get_at_or_default(tx, ty, self.out_of_bounds_value_index),
@@ -370,10 +388,11 @@ impl ChunkLayer {
         // iterate through the chunks.
 
         // println!();
-        for (chunk_ix, _) in &chunk_ixs {
+        for (chunk_ix, (cx, cy)) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
             let mut chunks = self.chunks.borrow_mut();
-            let mut chunk = chunks.get(chunk_ix).unwrap();
+            let mut chunk = chunks.get(*cx, *cy)
+                .expect("Chunk should be here");
             if !chunk.is_complete() {
                 // the chunk has unset tiles, so let's complete it.
                 // todo: see if it's in the disk cache
