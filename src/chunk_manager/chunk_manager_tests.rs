@@ -5,9 +5,9 @@ use crate::test_utils::*;
 use hiivelabs_storage_lib::prelude::UniqueId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use std::{fmt, fs};
 use std::fmt::Formatter;
 use std::time::Instant;
+use std::{fmt, fs};
 use uuid::Uuid;
 
 /// A wrapper around `u8` that implements `Debug` to display the value in hexadecimal.
@@ -158,6 +158,9 @@ fn test_init_cm_with_params(
     last_guid_byte: u8,
 ) {
     let guid_str = &format!("00000000-0000-0000-0000-0000000000{last_guid_byte:02x}");
+    // clean up db
+    let _ = fs::remove_file(format!("{guid_str}.world"));
+
     let guid = Some(Uuid::parse_str(guid_str).unwrap());
     let cm = make_test_chunk_manager(
         width,
@@ -181,9 +184,6 @@ fn test_init_cm_with_params(
             // assert_eq!(cm_val, tm_val);
         }
     }
-    // clean up db
-    let result = fs::remove_file("00000000-0000-0000-0000-000000000000.world");
-    log::info!("Delete Result: {result:?}");
 }
 
 #[test]
@@ -255,6 +255,10 @@ fn test_unique_id() {
     let uid = cm.get_unique_id(true);
     log::info!("Unique Id: [{uid}]");
     assert_eq!(uid, "cm-f924e4ca-cf67-6835-e74c-e0a569319372!m");
+
+    // clean up db
+    let result = fs::remove_file("00000000-0000-0000-0000-222222222222.world");
+    log::info!("File Cleanup Result: {result:?}");
 }
 #[test]
 fn test_can_get_from_non_zero_layer() {
@@ -317,4 +321,8 @@ fn test_can_get_from_non_zero_layer() {
     // Layer: [1]:[layer_33fc7b80-e69f-0b90-18ca-dd7d09624192!m] - VALUES
     // Layer: [2]:[layer_2a6ad74a-654c-a84d-3afd-0f03f53dc2df!m] - VALUES
     // Layer: [3]:[layer_184ce058-9441-5253-387c-2f7c95821aff!m] - VALUES
+
+    // clean up db
+    let result = fs::remove_file("00000000-0000-0000-0000-111111111111.world");
+    log::info!("File Cleanup Result: {result:?}");
 }

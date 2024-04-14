@@ -1,11 +1,15 @@
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::test_utils::setup_test_logger;
+use std::fs;
 use std::str::FromStr;
 use uuid::Uuid;
 
 #[test]
 fn test_is_chunk_border_coord() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000001.world");
+
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000001")
         .unwrap()
@@ -36,6 +40,9 @@ fn test_is_chunk_border_coord() {
 #[test]
 fn test_tile_coords_to_chunk_coords() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000002.world");
+
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000002")
         .unwrap()
@@ -65,6 +72,9 @@ fn test_tile_coords_to_chunk_coords() {
 #[test]
 fn test_chunk_coords_to_tile_coords() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000003.world");
+
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000003")
         .unwrap()
@@ -94,6 +104,9 @@ fn test_chunk_coords_to_tile_coords() {
 #[test]
 fn test_get_chunk_indices_for_tile_coords() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000004.world");
+
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000004")
         .unwrap()
@@ -186,6 +199,9 @@ fn test_get_chunk_indices_for_tile_coords() {
 #[test]
 fn test_set_and_get_top_layer_failing_case() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000005.world");
+
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000005")
@@ -219,13 +235,15 @@ fn test_set_and_get_top_layer_failing_case() {
 
     let _ = layer.set_at(x, y, value);
     let r_value = layer.get_at(x, y).expect("Value should be set");
-    assert_eq!(r_value, value)
-    //}
+    assert_eq!(r_value, value);
 }
 
 #[test]
 fn test_set_and_get_top_layer() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000006.world");
+
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000006")
@@ -270,6 +288,9 @@ fn test_set_and_get_top_layer() {
 #[test]
 fn test_boundary_chunk_values_set() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000007.world");
+
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000007")
@@ -323,6 +344,9 @@ fn test_boundary_chunk_values_set() {
 #[test]
 fn store_layer_chunk() {
     setup_test_logger();
+    // clean up db
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000008.world");
+
     log::info!("Starting test.");
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
@@ -340,7 +364,6 @@ fn store_layer_chunk() {
         manager_guid_bytes,
         layer_guid_bytes,
         32,
-
         20,
         20,
         1,
