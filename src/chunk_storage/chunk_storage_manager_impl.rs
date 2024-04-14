@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use schnellru::{ByLength, LruMap};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -13,12 +14,13 @@ use crate::chunk_seed_utils::chunk_seed_utils_impl::{
 use crate::chunk_storage::chunk_storage_message_impl::ChunkStorageMessage;
 use crate::chunk_storage::chunk_storage_thread_handler_impl::ChunkStorageThreadHandler;
 
-// TODO! Add in chunk_manager_guid param. add load_chunk_from_store.
-// TODO! add storage manager as struct member. modify get to check storage.
 // TODO! create tests for ChunkStorageManager
 // TODO! consider how to put ChunkStorageManager at top level.
 // TODO! need to be able to request chunks by (x, y, z), where z could be layer guid
 // TODO! Add tests for get_chunk_coords_for_hash_index (in layer)
+
+// DONE! Maintain list of chunks in storage, for quick checking without having to hit the disk
+// TODO! Make sure the above is threadsafe
 
 pub(crate) struct ChunkStorageManager {
     chunks: LruMap<(isize, isize), Chunk>,
@@ -26,6 +28,7 @@ pub(crate) struct ChunkStorageManager {
     owning_manager_guid: Uuid,
     owning_layer_guid: Uuid,
     chunk_storage_thread_handler: Arc<Mutex<ChunkStorageThreadHandler>>,
+    stored_chunk_ids: HashSet<String>,
     storage_tx: Option<Sender<ChunkStorageMessage>>,
     shutdown_complete_rx: Receiver<bool>,
 }
@@ -101,7 +104,7 @@ impl ChunkStorageManager {
         let (storage_tx, storage_rx) = mpsc::channel();
         let (shutdown_complete_tx, shutdown_complete_rx) = mpsc::channel();
         let owning_manager_guid = Uuid::from_bytes(owning_manager_guid_bytes);
-        let chunk_storage_thread_handler =
+        let (chunk_storage_thread_handler, stored_chunk_ids) =
             ChunkStorageThreadHandler::start(owning_manager_guid, storage_rx, shutdown_complete_tx);
 
         let owning_layer_guid = Uuid::from_bytes(owning_layer_guid_bytes);
@@ -111,6 +114,7 @@ impl ChunkStorageManager {
             owning_manager_guid,
             owning_layer_guid,
             chunk_storage_thread_handler,
+            stored_chunk_ids,
             storage_tx: Some(storage_tx),
             shutdown_complete_rx,
         }
@@ -130,13 +134,14 @@ impl ChunkStorageManager {
             let chunk_guid_bytes = create_seed_from_guid_x_y(self.owning_layer_guid, cx, cy);
             let chunk_unique_id = get_chunk_unique_id(chunk_guid_bytes, cx, cy, true);
 
+            // short circuit - don't load chunk if we know it's not in the cache
+            if !self.stored_chunk_ids.contains(&chunk_unique_id) {
+                return None;
+            }
+
             log::info!("ChunkStorageManager:get() attempting load chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
 
-            // let chunk = {
-            //     let chunk_storage_thread_handler =
-            //         self.chunk_storage_thread_handler.lock().unwrap();
-            //     chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
-            // };
+            // check if the chunk is in storage
             let chunk:Option<Chunk> = {
                 let mut attempts = 0;
                 loop {
@@ -149,14 +154,17 @@ impl ChunkStorageManager {
                             if attempts > 5 {
                                 log::error!("failed to obtain read lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
                             }
+                            attempts += 1;
                             None
                         }
                     };
 
-
-                    attempts += 1;
+                    // exit the loop if we've got something, or we're out of attempts
+                    if loaded_chunk.is_some() || attempts > 5 {
+                        break loaded_chunk;
+                    }
                     thread::sleep(std::time::Duration::from_millis(10));
-                    break loaded_chunk;
+
                 }
             };
 
@@ -199,12 +207,13 @@ impl ChunkStorageManager {
 
                 log::info!("ChunkStorageManager:insert() evicting dirty chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
                 // need to store this chunk
-
                 if let Some(storage_tx) = &self.storage_tx {
                     // storage_tx.send(ChunkStorageMessage::ToStore((move | c| c)(oldest_chunk))).expect("chunk failed to send");
                     storage_tx
                         .send(ChunkStorageMessage::ToStore(oldest_chunk))
                         .expect("chunk failed to send");
+
+                    self.stored_chunk_ids.insert(chunk_unique_id);
                 }
             }
         }

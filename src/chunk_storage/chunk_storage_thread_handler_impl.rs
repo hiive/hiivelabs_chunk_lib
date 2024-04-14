@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::chunk::Chunk;
 use crate::chunk_storage::chunk_storage_message_impl::ChunkStorageMessage;
 use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, UniqueId};
@@ -19,10 +20,19 @@ impl ChunkStorageThreadHandler {
         owning_manager_guid: Uuid,
         storage_rx: Receiver<ChunkStorageMessage>,
         shutdown_complete_tx: Sender<bool>,
-    ) -> Arc<Mutex<ChunkStorageThreadHandler>> {
+    ) -> (Arc<Mutex<ChunkStorageThreadHandler>>, HashSet<String>) {
         let storage_file_name = &format!("{owning_manager_guid}.world");
         let storage = SqliteStorageContainer::new(storage_file_name, true)
             .expect("failed to create storage container");
+
+        let initial_package_contents = match storage.get_package_contents::<Chunk>() {
+            Ok(contents) => {
+                HashSet::from_iter(contents)
+            }
+            Err(_) => {
+                HashSet::<String>::new()
+            }
+        };
 
         let storage_thread_handler = Arc::new(Mutex::new(Self {
             owning_manager_guid,
@@ -47,7 +57,7 @@ impl ChunkStorageThreadHandler {
             }
         }
 
-        storage_thread_handler
+        (storage_thread_handler, initial_package_contents)
     }
 
     fn init_thread(
