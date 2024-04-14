@@ -5,7 +5,7 @@ use crate::test_utils::*;
 use hiivelabs_storage_lib::prelude::UniqueId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use std::fmt;
+use std::{fmt, fs};
 use std::fmt::Formatter;
 use std::time::Instant;
 use uuid::Uuid;
@@ -155,8 +155,10 @@ fn test_init_cm_with_params(
     chunk_height: usize,
     chunk_padding_in_tiles: usize,
     use_random_map: bool,
+    last_guid_byte: u8,
 ) {
-    let guid = Some(Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap());
+    let guid_str = &format!("00000000-0000-0000-0000-0000000000{last_guid_byte:02x}");
+    let guid = Some(Uuid::parse_str(guid_str).unwrap());
     let cm = make_test_chunk_manager(
         width,
         height,
@@ -179,18 +181,21 @@ fn test_init_cm_with_params(
             // assert_eq!(cm_val, tm_val);
         }
     }
+    // clean up db
+    let result = fs::remove_file("00000000-0000-0000-0000-000000000000.world");
+    log::info!("Delete Result: {result:?}");
 }
 
 #[test]
 fn test_small_init() {
     setup_test_logger();
-    test_init_cm_with_params(64, 32, 4, 32, 32, 16, 1, true);
+    test_init_cm_with_params(64, 32, 4, 32, 32, 16, 1, true, 0xFF);
 }
 
 #[test]
 fn test_large_init() {
     setup_test_logger();
-    test_init_cm_with_params(1024, 768, 8, 32, 32, 16, 1, true);
+    test_init_cm_with_params(1024, 768, 8, 32, 32, 16, 1, true, 0x00);
 }
 
 #[test]
