@@ -1,6 +1,6 @@
 use schnellru::{ByLength, LruMap};
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 use hiivelabs_storage_lib::prelude::UniqueId;
@@ -29,7 +29,7 @@ pub(crate) struct ChunkStorageManager {
     lru_cache_size: usize,
     owning_manager_guid: Uuid,
     owning_layer_guid: Uuid,
-    chunk_storage_thread_handler: Arc<Mutex<ChunkStorageThreadHandler>>,
+    chunk_storage_thread_handler: Arc<RwLock<ChunkStorageThreadHandler>>,
     stored_chunk_ids: HashSet<String>,
     storage_tx: Option<Sender<ChunkStorageMessage>>,
     shutdown_complete_rx: Receiver<bool>,
@@ -84,7 +84,8 @@ impl Drop for ChunkStorageManager {
         }
         // wait before attempting to shut stuff down.
         thread::sleep(std::time::Duration::from_millis(100));
-        let mut chunk_storage_thread_handler = self.chunk_storage_thread_handler.lock().unwrap();
+        let mut chunk_storage_thread_handler =
+            self.chunk_storage_thread_handler.try_write().unwrap();
         log::info!("ChunkStorageManager: waiting for storage thread shutdown");
         chunk_storage_thread_handler.join();
         log::info!("ChunkStorageMessage: flushed {flush_count}/{to_flush_count} chunks");
@@ -149,7 +150,7 @@ impl ChunkStorageManager {
                 let mut attempts = 0;
                 loop {
                     let chunk_storage_thread_handler_opt =
-                        self.chunk_storage_thread_handler.try_lock();
+                        self.chunk_storage_thread_handler.try_read();
                     let loaded_chunk = match chunk_storage_thread_handler_opt {
                         Ok(chunk_storage_thread_handler) => {
                             chunk_storage_thread_handler.load_chunk(&chunk_unique_id)

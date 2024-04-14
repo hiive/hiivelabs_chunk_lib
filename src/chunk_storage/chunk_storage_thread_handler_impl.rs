@@ -4,7 +4,7 @@ use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, U
 use log;
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use uuid::Uuid;
@@ -20,7 +20,7 @@ impl ChunkStorageThreadHandler {
         owning_manager_guid: Uuid,
         storage_rx: Receiver<ChunkStorageMessage>,
         shutdown_complete_tx: Sender<bool>,
-    ) -> (Arc<Mutex<ChunkStorageThreadHandler>>, HashSet<String>) {
+    ) -> (Arc<RwLock<ChunkStorageThreadHandler>>, HashSet<String>) {
         let storage_file_name = &format!("{owning_manager_guid}.world");
         let storage = SqliteStorageContainer::new(storage_file_name, true)
             .expect("failed to create storage container");
@@ -30,7 +30,7 @@ impl ChunkStorageThreadHandler {
             Err(_) => HashSet::<String>::new(),
         };
 
-        let storage_thread_handler = Arc::new(Mutex::new(Self {
+        let storage_thread_handler = Arc::new(RwLock::new(Self {
             owning_manager_guid,
             storage,
             thread_join_handle: None,
@@ -43,7 +43,7 @@ impl ChunkStorageThreadHandler {
 
         // clone to set thread handle.
         let temp_clone = storage_thread_handler.clone();
-        let self_lock_opt = temp_clone.try_lock();
+        let self_lock_opt = temp_clone.try_write();
         match self_lock_opt {
             Ok(mut self_lock) => {
                 self_lock.thread_join_handle = Some(thread_handle);
@@ -57,7 +57,7 @@ impl ChunkStorageThreadHandler {
     }
 
     fn init_thread(
-        arced_self: Arc<Mutex<Self>>,
+        arced_self: Arc<RwLock<Self>>,
         storage_rx: Receiver<ChunkStorageMessage>,
         shutdown_complete_tx: Sender<bool>,
     ) -> JoinHandle<()> {
@@ -73,7 +73,7 @@ impl ChunkStorageThreadHandler {
                         let chunk_unique_id = chunk.get_unique_id(true);
                         let mut attempts = 0;
                         loop {
-                            let self_lock_opt = arced_self.try_lock();
+                            let self_lock_opt = arced_self.try_write();
                             match self_lock_opt {
                                 Ok(self_lock) => {
                                     self_lock.save_chunk(&mut chunk);
