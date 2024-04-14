@@ -38,15 +38,21 @@ pub fn create_seed_from_guid_bytes_x_y(guid_bytes: &[u8; 16], x: isize, y: isize
     create_seed_from_bytes(byte_vec)
 }
 
-pub(crate) fn get_chunk_manager_unique_id<T>(guid_bytes: [u8; 16], mangle: bool) -> String {
+fn get_friendly_type_name<T>() -> String {
     let t_name = std::any::type_name::<T>();
-    let t_name = t_name.split("::").last().unwrap_or(t_name).to_string();
-
-    return get_prefixed_unique_id("cm", guid_bytes, 0, 0, mangle, Some(t_name));
+    t_name.split("::").last().unwrap_or(t_name).to_string()
+}
+pub(crate) fn get_chunk_manager_unique_id<T>(guid_bytes: [u8; 16], mangle: bool) -> String {
+    let t_name = get_friendly_type_name::<T>();
+    let unique_id = get_prefixed_unique_id("cm", guid_bytes, 0, 0, mangle, Some(t_name));
+    // log::info!("ChunkManager UniqueId: [{}:({})] -> [{unique_id}]", Uuid::from_bytes(guid_bytes), get_friendly_type_name::<T>());
+    unique_id
 }
 
 pub(crate) fn get_chunk_layer_unique_id(guid_bytes: [u8; 16], mangle: bool) -> String {
-    return get_prefixed_unique_id("cl", guid_bytes, 0, 0, mangle, None);
+    let unique_id = get_prefixed_unique_id("cl", guid_bytes, 0, 0, mangle, None);
+    // log::info!("ChunkLayer UniqueId: [{}] -> [{unique_id}]", Uuid::from_bytes(guid_bytes));
+    unique_id
 }
 pub(crate) fn get_chunk_unique_id(
     guid_bytes: [u8; 16],
@@ -54,7 +60,9 @@ pub(crate) fn get_chunk_unique_id(
     cy: isize,
     mangle: bool,
 ) -> String {
-    return get_prefixed_unique_id("ch", guid_bytes, cx, cy, mangle, None);
+    let unique_id = get_prefixed_unique_id("ch", guid_bytes, cx, cy, mangle, None);
+    // log::info!("Chunk UniqueId: [{}:({cx},{cy})] -> [{unique_id}]", Uuid::from_bytes(guid_bytes));
+    unique_id
 }
 
 fn get_prefixed_unique_id(

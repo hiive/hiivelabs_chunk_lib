@@ -10,6 +10,7 @@ pub struct Chunk {
     pub(crate) chunk_height: usize,
     pub(crate) tiles: Vec<Option<TIndex>>,
     pub(crate) guid_bytes: [u8; 16],
+    pub(crate) is_dirty: bool,
 }
 
 impl Chunk {
@@ -44,6 +45,7 @@ impl Chunk {
             chunk_height,
             tiles,
             guid_bytes,
+            is_dirty: false,
         }
     }
 
@@ -98,7 +100,12 @@ impl Chunk {
         let result = self.bounds.get_index_for_coords(tx, ty, true);
         match result {
             Ok((ix, _, _)) => {
+                let old_value = self.tiles[ix as usize];
                 self.tiles[ix as usize] = Some(value);
+                // set dirty flag if not already set.
+                if !self.is_dirty {
+                    self.is_dirty = old_value != self.tiles[ix as usize];
+                }
                 Ok(())
             }
             Err(msg) => Err(msg),

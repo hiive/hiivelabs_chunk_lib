@@ -243,8 +243,9 @@ impl ChunkLayer {
         let mut chunks = self.chunks.borrow_mut();
         for (_chunk_ix, (cx, cy)) in chunk_ixs {
             match chunks.get(*cx, *cy) {
-                Some(_) => {
+                Some(_chunk) => {
                     // already exists. No action required.
+                    // log::info!("Chunk [{}] exists in cache", _chunk.get_unique_id(true));
                 }
                 None => {
                     // create a new chunk
@@ -262,7 +263,10 @@ impl ChunkLayer {
                         self.tile_bounds.padding,
                         chunk_guid,
                     );
-
+                    log::info!(
+                        "Chunk [{}]:({cx},{cy}) created",
+                        new_chunk.get_unique_id(true)
+                    );
                     chunks.insert(*cx, *cy, new_chunk);
                 }
             }
@@ -353,7 +357,7 @@ impl ChunkLayer {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         if chunk_ixs.is_empty() {
             log::warn!(
-                "NO CHUNKS FOUND FOR: ({tx}, {ty}), {} : (w:{}, h:{})",
+                "no chunks found for: ({tx}, {ty}), {} : (w:{}, h:{})",
                 self.layer_id,
                 self.tile_bounds.width,
                 self.tile_bounds.height

@@ -4,6 +4,10 @@ use hiivelabs_storage_lib::prelude::UniqueId;
 
 impl UniqueId for Chunk {
     fn get_unique_id(&self, mangle: bool) -> String {
-        get_chunk_unique_id(self.guid_bytes, self.bounds.x, self.bounds.y, mangle)
+        let (cx, cy) = (
+            self.bounds.x / self.bounds.height as isize,
+            self.bounds.y / self.bounds.height as isize,
+        );
+        get_chunk_unique_id(self.guid_bytes, cx, cy, mangle)
     }
 }

@@ -323,6 +323,7 @@ fn test_boundary_chunk_values_set() {
 #[test]
 fn store_layer_chunk() {
     setup_test_logger();
+    log::info!("Starting test.");
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
     let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000008")
@@ -339,8 +340,9 @@ fn store_layer_chunk() {
         manager_guid_bytes,
         layer_guid_bytes,
         32,
-        5,
-        5,
+
+        15,
+        15,
         1,
         10,
         10,
