@@ -341,8 +341,8 @@ fn store_layer_chunk() {
         layer_guid_bytes,
         32,
 
-        15,
-        15,
+        20,
+        20,
         1,
         10,
         10,
