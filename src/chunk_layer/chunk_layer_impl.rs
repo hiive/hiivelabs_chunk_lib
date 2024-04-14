@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use hiivelabs_storage_lib::prelude::{UniqueId};
-use schnellru::{ByLength, LruMap};
+use hiivelabs_storage_lib::prelude::UniqueId;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -23,7 +22,8 @@ pub struct ChunkLayer {
     pub(crate) chunks: RefCell<ChunkStorageManager>,
     pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
-    pub(crate) guid_bytes: [u8; 16],
+    pub(crate) manager_guid_bytes: [u8; 16],
+    pub(crate) layer_guid_bytes: [u8; 16],
 }
 
 impl ChunkLayer {
@@ -35,6 +35,7 @@ impl ChunkLayer {
     pub fn new(
         parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
         layer_id: usize,
+        manager_guid_bytes: [u8; 16],
         layer_guid_bytes: [u8; 16],
         layer_chunk_lru_cache_size: u32,
         width_in_chunks: usize,
@@ -49,7 +50,8 @@ impl ChunkLayer {
 
         Self {
             layer_id,
-            guid_bytes: layer_guid_bytes,
+            manager_guid_bytes,
+            layer_guid_bytes,
             chunk_bounds: Bounds {
                 x: 0,
                 y: 0,
@@ -66,7 +68,11 @@ impl ChunkLayer {
             },
             chunk_width_in_tiles,
             chunk_height_in_tiles,
-            chunks: RefCell::new(ChunkStorageManager::new(layer_chunk_lru_cache_size)),
+            chunks: RefCell::new(ChunkStorageManager::new(
+                layer_chunk_lru_cache_size,
+                manager_guid_bytes,
+                layer_guid_bytes,
+            )),
             parent_layer,
             out_of_bounds_value_index,
         }
@@ -85,7 +91,10 @@ impl ChunkLayer {
         Some(ix)
     }
 
-    pub(crate) fn get_chunk_coords_for_hash_index(&self, hash_index: isize) -> Option<(isize, isize)> {
+    pub(crate) fn get_chunk_coords_for_hash_index(
+        &self,
+        hash_index: isize,
+    ) -> Option<(isize, isize)> {
         // Check if the index is within the valid range
         let width = self.chunk_bounds.width as isize;
         let height = self.chunk_bounds.height as isize;
@@ -232,26 +241,26 @@ impl ChunkLayer {
         chunk_ixs: &SmallVec<(isize, (isize, isize)), 4>,
     ) {
         let mut chunks = self.chunks.borrow_mut();
-        for (chunk_ix, (cx, cy)) in chunk_ixs {
+        for (_chunk_ix, (cx, cy)) in chunk_ixs {
             match chunks.get(*cx, *cy) {
                 Some(_) => {
                     // already exists. No action required.
                 }
                 None => {
                     // create a new chunk
-                    let (c_tx, c_ty) = self.chunk_coords_to_tile_coords(*cx, *cy);
-                    let guid = Uuid::from_bytes(create_seed_from_guid_bytes_x_y(
-                        &self.guid_bytes,
-                        c_tx,
-                        c_ty,
+                    let chunk_guid = Uuid::from_bytes(create_seed_from_guid_bytes_x_y(
+                        &self.layer_guid_bytes,
+                        *cx,
+                        *cy,
                     ));
+                    let (c_tx, c_ty) = self.chunk_coords_to_tile_coords(*cx, *cy);
                     let new_chunk = Chunk::new(
                         c_tx,
                         c_ty,
                         self.chunk_width_in_tiles,
                         self.chunk_height_in_tiles,
                         self.tile_bounds.padding,
-                        guid,
+                        chunk_guid,
                     );
 
                     chunks.insert(*cx, *cy, new_chunk);
@@ -266,8 +275,8 @@ impl ChunkLayer {
 
         let mut error_count = 0;
         let mut chunks = self.chunks.borrow_mut();
-        for (chunk_ix, (cx, cy)) in chunk_ixs {
-            let mut chunk = chunks.get(cx, cy).unwrap(); // we know the chunk exists.
+        for (_chunk_ix, (cx, cy)) in chunk_ixs {
+            let chunk = chunks.get(cx, cy).unwrap(); // we know the chunk exists.
 
             let result = chunk.set_at(tx, ty, value);
             if result.is_err() {
@@ -295,7 +304,8 @@ impl ChunkLayer {
         let opt_chunk_idx = self.get_first_chunk_index_at_tile_coords(tx, ty);
         match opt_chunk_idx {
             Some(chunk_idx) => {
-                let (cx, cy) = self.get_chunk_coords_for_hash_index(chunk_idx)
+                let (cx, cy) = self
+                    .get_chunk_coords_for_hash_index(chunk_idx)
                     .expect("Invalid chunk index!"); // should be always good
                 let mut chunks = self.chunks.borrow_mut();
                 let chunk = chunks.get(cx, cy);
@@ -318,7 +328,8 @@ impl ChunkLayer {
         let opt_chunk_idx = self.get_first_chunk_index_at_tile_coords(tx, ty);
         match opt_chunk_idx {
             Some(chunk_idx) => {
-                let (cx, cy) = self.get_chunk_coords_for_hash_index(chunk_idx)
+                let (cx, cy) = self
+                    .get_chunk_coords_for_hash_index(chunk_idx)
                     .expect("Invalid chunk index!"); // should be always good
                 let mut chunks = self.chunks.borrow_mut();
                 let chunk = chunks.get(cx, cy);
@@ -388,14 +399,12 @@ impl ChunkLayer {
         // iterate through the chunks.
 
         // println!();
-        for (chunk_ix, (cx, cy)) in &chunk_ixs {
+        for (_chunk_ix, (cx, cy)) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
             let mut chunks = self.chunks.borrow_mut();
-            let mut chunk = chunks.get(*cx, *cy)
-                .expect("Chunk should be here");
+            let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
             if !chunk.is_complete() {
                 // the chunk has unset tiles, so let's complete it.
-                // todo: see if it's in the disk cache
 
                 // for initial purposes, we are just going to do a simple doubling up
                 // of the parent.

@@ -156,6 +156,7 @@ fn test_init_cm_with_params(
     chunk_padding_in_tiles: usize,
     use_random_map: bool,
 ) {
+    let guid = Some(Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap());
     let cm = make_test_chunk_manager(
         width,
         height,
@@ -165,7 +166,7 @@ fn test_init_cm_with_params(
         chunk_height,
         chunk_padding_in_tiles,
         use_random_map,
-        None,
+        guid,
     );
     assert_eq!(cm.width, width);
     assert_eq!(cm.height, height);
@@ -244,16 +245,16 @@ fn test_zero_layer_count_height() {
 #[test]
 fn test_unique_id() {
     setup_test_logger();
-    let guid = Some(Uuid::parse_str("a375ab7d-8219-4416-a927-c94511a3689c").unwrap());
+    let guid = Some(Uuid::parse_str("00000000-0000-0000-0000-222222222222").unwrap());
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
     let uid = cm.get_unique_id(true);
     log::info!("Unique Id: [{uid}]");
-    assert_eq!(uid, "cm-216b5c86-d2bd-72b0-8225-e3d83c7b6c68!m");
+    assert_eq!(uid, "cm-f924e4ca-cf67-6835-e74c-e0a569319372!m");
 }
 #[test]
 fn test_can_get_from_non_zero_layer() {
     setup_test_logger();
-    let guid = Some(Uuid::parse_str("a375ab7d-8219-4416-a927-c94511a3689b").unwrap());
+    let guid = Some(Uuid::parse_str("00000000-0000-0000-0000-111111111111").unwrap());
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
 
     log::info!("[INITIAL]");

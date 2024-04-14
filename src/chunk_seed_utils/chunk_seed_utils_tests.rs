@@ -1,5 +1,7 @@
+use crate::chunk_seed_utils::chunk_seed_utils_impl::{
+    create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y,
+};
 use uuid::Uuid;
-use crate::chunk_seed_utils::chunk_seed_utils_impl::{create_seed_from_guid_bytes_x_y, create_seed_from_guid_x_y};
 
 #[test]
 fn test_create_seed_from_guid_x_y() {

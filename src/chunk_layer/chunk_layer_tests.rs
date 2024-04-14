@@ -1,14 +1,34 @@
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::test_utils::setup_test_logger;
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[test]
 fn test_is_chunk_border_coord() {
     setup_test_logger();
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000001")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000001")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(
+        prev_layer,
+        1,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        10,
+        10,
+        1,
+        10,
+        10,
+        oob,
+    );
     assert_eq!(layer.is_chunk_border_coord(10, 10), (true, true));
     assert_eq!(layer.is_chunk_border_coord(5, 5), (false, false));
 }
@@ -17,9 +37,28 @@ fn test_is_chunk_border_coord() {
 fn test_tile_coords_to_chunk_coords() {
     setup_test_logger();
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000002")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000002")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(
+        prev_layer,
+        1,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        10,
+        10,
+        1,
+        10,
+        10,
+        oob,
+    );
     assert_eq!(layer.tile_coords_to_chunk_coords(15, 25), (1, 2));
 }
 
@@ -27,9 +66,28 @@ fn test_tile_coords_to_chunk_coords() {
 fn test_chunk_coords_to_tile_coords() {
     setup_test_logger();
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000003")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000003")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 10, 10, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(
+        prev_layer,
+        1,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        10,
+        10,
+        1,
+        10,
+        10,
+        oob,
+    );
     assert_eq!(layer.chunk_coords_to_tile_coords(1, 2), (10, 20));
 }
 
@@ -37,9 +95,28 @@ fn test_chunk_coords_to_tile_coords() {
 fn test_get_chunk_indices_for_tile_coords() {
     setup_test_logger();
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000004")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000004")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
     let prev_layer = ChunkLayer::make_layer_rc(None);
-    let layer = ChunkLayer::new(prev_layer, 1, guid_bytes, 32, 2, 2, 1, 10, 10, oob);
+    let layer = ChunkLayer::new(
+        prev_layer,
+        1,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        2,
+        2,
+        1,
+        10,
+        10,
+        oob,
+    );
     // Assuming Bounds::get_index_for_coords and Bounds::is_index_in_bounds are correctly implemented
     // and chunks are properly initialized in the layer.
     // This example assumes chunks are laid out linearly and checks for boundary conditions.
@@ -111,8 +188,27 @@ fn test_set_and_get_top_layer_failing_case() {
     setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
-    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 1, 1, 1, 10, 10, oob);
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000005")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000005")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let mut layer = ChunkLayer::new(
+        prev_layer,
+        0,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        1,
+        1,
+        1,
+        10,
+        10,
+        oob,
+    );
 
     //for i in -1_isize..5 {
     let x = 2;
@@ -132,8 +228,27 @@ fn test_set_and_get_top_layer() {
     setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
-    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 1, 1, 1, 10, 10, oob);
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000006")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000006")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let mut layer = ChunkLayer::new(
+        prev_layer,
+        0,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        1,
+        1,
+        1,
+        10,
+        10,
+        oob,
+    );
 
     for i in -1_isize..5 {
         let x = i;
@@ -157,8 +272,27 @@ fn test_boundary_chunk_values_set() {
     setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = Uuid::new_v4().as_bytes().to_owned();
-    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 2, 2, 1, 4, 4, oob);
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000007")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000007")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let mut layer = ChunkLayer::new(
+        prev_layer,
+        0,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        2,
+        2,
+        1,
+        4,
+        4,
+        oob,
+    );
 
     let x = 4;
     let y = 4;
@@ -191,8 +325,27 @@ fn store_layer_chunk() {
     setup_test_logger();
     let prev_layer = ChunkLayer::make_layer_rc(None);
     let oob: Option<TIndex> = Some(0);
-    let guid_bytes = hiivelabs_rand_utils_lib::prelude::create_seed_from_bytes(vec![1, 16]);
-    let mut layer = ChunkLayer::new(prev_layer, 0, guid_bytes, 32, 20, 20, 1, 10, 10, oob);
+    let manager_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000008")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let layer_guid_bytes = Uuid::from_str("00000000-0000-0000-0000-000000000008")
+        .unwrap()
+        .as_bytes()
+        .to_owned();
+    let mut layer = ChunkLayer::new(
+        prev_layer,
+        0,
+        manager_guid_bytes,
+        layer_guid_bytes,
+        32,
+        20,
+        20,
+        1,
+        10,
+        10,
+        oob,
+    );
 
     let mut count = 0_isize as TIndex;
     for y in 0..layer.tile_bounds.height as isize {

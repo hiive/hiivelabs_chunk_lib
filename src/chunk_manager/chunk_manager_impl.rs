@@ -18,7 +18,7 @@ pub struct ChunkManager<T> {
     pub height: usize,
     pub(crate) owned_values: Vec<T>,
     pub(crate) out_of_bounds_value_index: TIndex,
-    pub(crate) guid_bytes: [u8; 16],
+    pub(crate) manager_guid_bytes: [u8; 16],
     // pub(crate) rnd : SmallRng
 }
 
@@ -83,7 +83,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let is_new = guid.is_none(); //todo - use this to determine whether to look in storage
         let _is_new = is_new; // temp
 
-        let guid_bytes = guid.unwrap_or(Uuid::new_v4()).as_bytes().to_owned();
+        let manager_guid_bytes = guid.unwrap_or(Uuid::new_v4()).as_bytes().to_owned();
 
         // TODO - check
         // let's calculate a reasonable starting capacity for the owned_values vector.
@@ -104,7 +104,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // create the layers
         let (layers, out_of_bounds_value_index) = ChunkManager::init_layers(
-            &guid_bytes,
+            manager_guid_bytes,
             &mut owned_values,
             source,
             layer_count,
@@ -120,7 +120,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             height,
             owned_values,
             out_of_bounds_value_index,
-            guid_bytes,
+            manager_guid_bytes,
         }
     }
 
@@ -262,7 +262,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     #[allow(clippy::too_many_arguments)]
     fn init_layers(
-        guid: &[u8; 16],
+        manager_guid_bytes: [u8; 16],
         owned_values: &mut Vec<T>,
         mut source: Box<dyn TileMapDataSource<T>>,
         layer_count: usize,
@@ -280,7 +280,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let mut prev_layer = Rc::new(RefCell::new(None));
         for layer_id in 0..layer_count {
             // each layer is double the width/height of the previous one.
-            let layer_guid = create_seed_from_guid_bytes_x_y(guid, layer_id as isize, 0);
+            let layer_guid_bytes =
+                create_seed_from_guid_bytes_x_y(&manager_guid_bytes, layer_id as isize, 0);
             let f = 2_usize.pow(layer_id as u32);
 
             let (
@@ -323,7 +324,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             let mut current_layer = ChunkLayer::new(
                 Rc::clone(&prev_layer),
                 layer_id,
-                layer_guid,
+                manager_guid_bytes,
+                layer_guid_bytes,
                 layer_chunk_cache_size,
                 layer_width_in_chunks,
                 layer_height_in_chunks,

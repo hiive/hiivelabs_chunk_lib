@@ -1,10 +1,10 @@
 #![allow(dead_code)]
-mod chunk_seed_utils;
 mod bounds;
-mod chunk_storage;
 mod chunk;
 mod chunk_layer;
 pub mod chunk_manager;
+mod chunk_seed_utils;
+mod chunk_storage;
 pub mod tilemap_datasource;
 
 #[cfg(test)]
