@@ -77,7 +77,7 @@ impl ChunkStorageThreadHandler {
                                     attempts += 1;
                                     thread::sleep(std::time::Duration::from_millis(100));
                                     if attempts > 5 {
-                                        log::error!("failed to obtain lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
+                                        log::error!("failed to obtain write lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
                                         break;
                                     }
                                 }
@@ -135,9 +135,9 @@ impl ChunkStorageThreadHandler {
     }
 
     pub(crate) fn load_chunk(&self, chunk_unique_id: &str) -> Option<Chunk> {
-        let load_result = self
-            .storage
-            .load_data_from_package::<Chunk>(chunk_unique_id);
+        let load_result = self.storage.load_data_from_package::<Chunk>(
+            chunk_unique_id
+        );
         match load_result {
             Ok(chunk) => {
                 log::info!("Loaded chunk [{chunk_unique_id}] from disk",);

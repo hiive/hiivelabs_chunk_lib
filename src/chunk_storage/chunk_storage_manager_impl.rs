@@ -132,11 +132,34 @@ impl ChunkStorageManager {
 
             log::info!("ChunkStorageManager:get() attempting load chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
 
-            let chunk = {
-                let chunk_storage_thread_handler =
-                    self.chunk_storage_thread_handler.lock().unwrap();
-                chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
+            // let chunk = {
+            //     let chunk_storage_thread_handler =
+            //         self.chunk_storage_thread_handler.lock().unwrap();
+            //     chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
+            // };
+            let chunk:Option<Chunk> = {
+                let mut attempts = 0;
+                loop {
+                    let chunk_storage_thread_handler_opt = self.chunk_storage_thread_handler.try_lock();
+                    let loaded_chunk = match chunk_storage_thread_handler_opt {
+                        Ok(chunk_storage_thread_handler) => {
+                            chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
+                        }
+                        Err(err) => {
+                            if attempts > 5 {
+                                log::error!("failed to obtain read lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
+                            }
+                            None
+                        }
+                    };
+
+
+                    attempts += 1;
+                    thread::sleep(std::time::Duration::from_millis(10));
+                    break loaded_chunk;
+                }
             };
+
             if chunk.is_some() {
                 // self.check_cache_size();
                 self.insert(cx, cy, chunk.unwrap());
