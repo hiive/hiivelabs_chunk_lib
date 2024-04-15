@@ -345,7 +345,7 @@ fn test_boundary_chunk_values_set() {
 fn store_layer_chunk() {
     setup_test_logger();
     // clean up db
-    // let _ = fs::remove_file("00000000-0000-0000-0000-000000000008.world");
+    let _ = fs::remove_file("00000000-0000-0000-0000-000000000008.world");
 
     log::info!("Starting test.");
     let prev_layer = ChunkLayer::make_layer_rc(None);

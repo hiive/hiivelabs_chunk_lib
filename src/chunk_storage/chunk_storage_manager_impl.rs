@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use schnellru::{ByLength, LruMap};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
@@ -20,7 +20,9 @@ use crate::chunk_storage::chunk_storage_thread_handler_impl::ChunkStorageThreadH
 // TODO! Add tests for get_chunk_coords_for_hash_index (in layer)
 
 // DONE! Maintain list of chunks in storage, for quick checking without having to hit the disk
-// TODO! Make sure the above is threadsafe
+// TODO! Make sure the above is thread-safe
+
+const MAX_ATTEMPTS: usize = 5;
 
 pub(crate) struct ChunkStorageManager {
     chunks: LruMap<(isize, isize), Chunk>,
@@ -85,7 +87,7 @@ impl Drop for ChunkStorageManager {
         let mut chunk_storage_thread_handler = self.chunk_storage_thread_handler.lock().unwrap();
         log::info!("ChunkStorageManager: waiting for storage thread shutdown");
         chunk_storage_thread_handler.join();
-        log::info!("ChunkStorageMessage: Flushed {flush_count}/{to_flush_count} chunks");
+        log::info!("ChunkStorageMessage: flushed {flush_count}/{to_flush_count} chunks");
         log::info!("ChunkStorageManager: storage thread shutdown successfully");
     }
 }
@@ -136,22 +138,24 @@ impl ChunkStorageManager {
 
             // short circuit - don't load chunk if we know it's not in the cache
             if !self.stored_chunk_ids.contains(&chunk_unique_id) {
+                log::info!("ChunkStorageManager:get() chunk not in storage: [{chunk_unique_id}] {chunk_cache_key:?}");
                 return None;
             }
 
             log::info!("ChunkStorageManager:get() attempting load chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
 
             // check if the chunk is in storage
-            let chunk:Option<Chunk> = {
+            let chunk: Option<Chunk> = {
                 let mut attempts = 0;
                 loop {
-                    let chunk_storage_thread_handler_opt = self.chunk_storage_thread_handler.try_lock();
+                    let chunk_storage_thread_handler_opt =
+                        self.chunk_storage_thread_handler.try_lock();
                     let loaded_chunk = match chunk_storage_thread_handler_opt {
                         Ok(chunk_storage_thread_handler) => {
                             chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
                         }
                         Err(err) => {
-                            if attempts > 5 {
+                            if attempts >= MAX_ATTEMPTS {
                                 log::error!("failed to obtain read lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
                             }
                             attempts += 1;
@@ -160,11 +164,10 @@ impl ChunkStorageManager {
                     };
 
                     // exit the loop if we've got something, or we're out of attempts
-                    if loaded_chunk.is_some() || attempts > 5 {
+                    if loaded_chunk.is_some() || attempts >= MAX_ATTEMPTS {
                         break loaded_chunk;
                     }
                     thread::sleep(std::time::Duration::from_millis(10));
-
                 }
             };
 
@@ -208,12 +211,9 @@ impl ChunkStorageManager {
                 log::info!("ChunkStorageManager:insert() evicting dirty chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
                 // need to store this chunk
                 if let Some(storage_tx) = &self.storage_tx {
-                    // storage_tx.send(ChunkStorageMessage::ToStore((move | c| c)(oldest_chunk))).expect("chunk failed to send");
                     storage_tx
                         .send(ChunkStorageMessage::ToStore(oldest_chunk))
                         .expect("chunk failed to send");
-
-                    self.stored_chunk_ids.insert(chunk_unique_id);
                 }
             }
         }

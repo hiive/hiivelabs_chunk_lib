@@ -1,8 +1,8 @@
-use std::collections::HashSet;
 use crate::chunk::Chunk;
 use crate::chunk_storage::chunk_storage_message_impl::ChunkStorageMessage;
 use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, UniqueId};
 use log;
+use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -26,12 +26,8 @@ impl ChunkStorageThreadHandler {
             .expect("failed to create storage container");
 
         let initial_package_contents = match storage.get_package_contents::<Chunk>() {
-            Ok(contents) => {
-                HashSet::from_iter(contents)
-            }
-            Err(_) => {
-                HashSet::<String>::new()
-            }
+            Ok(contents) => HashSet::from_iter(contents),
+            Err(_) => HashSet::<String>::new(),
         };
 
         let storage_thread_handler = Arc::new(Mutex::new(Self {
@@ -87,7 +83,7 @@ impl ChunkStorageThreadHandler {
                                     attempts += 1;
                                     thread::sleep(std::time::Duration::from_millis(100));
                                     if attempts > 5 {
-                                        log::error!("failed to obtain write lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
+                                        log::error!("ChunkStorageThreadHandler: failed to obtain write lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
                                         break;
                                     }
                                 }
@@ -145,9 +141,9 @@ impl ChunkStorageThreadHandler {
     }
 
     pub(crate) fn load_chunk(&self, chunk_unique_id: &str) -> Option<Chunk> {
-        let load_result = self.storage.load_data_from_package::<Chunk>(
-            chunk_unique_id
-        );
+        let load_result = self
+            .storage
+            .load_data_from_package::<Chunk>(chunk_unique_id);
         match load_result {
             Ok(chunk) => {
                 log::info!("Loaded chunk [{chunk_unique_id}] from disk",);
