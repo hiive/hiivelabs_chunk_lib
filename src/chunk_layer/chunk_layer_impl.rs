@@ -421,8 +421,10 @@ impl ChunkLayer {
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
         // iterate through the chunks.
-        // let chunk_generator = crate::chunk_generator::chunk_seeded_interpolator_impl::ChunkSeededInterpolator;
-        let chunk_generator = crate::chunk_generator::chunk_doubler_impl::ChunkDoubler;
+        let chunk_generator =
+            crate::chunk_generator::chunk_seeded_interpolator_impl::ChunkSeededInterpolator;
+        // let chunk_generator = crate::chunk_generator::chunk_doubler_impl::ChunkDoubler;
+
         // println!();
         for (_chunk_ix, (cx, cy)) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
@@ -510,7 +512,6 @@ impl ChunkLayer {
                         let t_value = pcc.get_at(parent_x - pcc.bounds.x, parent_y - pcc.bounds.y).unwrap();
                         t_value
                         */
-
 
                         match parent_layer.get_at_or_default(parent_x, parent_y) {
                             None => {
