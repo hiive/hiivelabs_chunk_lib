@@ -50,6 +50,22 @@ impl Bounds {
         Ok((adj_y * padded_width + adj_x, adj_x, adj_y))
     }
 
+    pub(crate) fn get_width(&self, include_padding: bool) -> usize {
+        if include_padding {
+            self.width + self.padding * 2
+        } else {
+            self.width
+        }
+    }
+
+    pub(crate) fn get_height(&self, include_padding: bool) -> usize {
+        if include_padding {
+            self.height + self.padding * 2
+        } else {
+            self.height
+        }
+    }
+
     pub(crate) fn get_adjusted_coordinates(&self, x: isize, y: isize) -> (isize, isize) {
         let padding = self.padding as isize;
         (x + padding - self.x, y + padding - self.y)

@@ -239,8 +239,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // is complete so it can be used to calculate the next layer corresponding chunk.
         for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
             let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
-            let layer_opt = layer_rc.borrow();
-            let layer = layer_opt.as_ref().unwrap();
+            let mut layer_opt = layer_rc.borrow_mut();
+            let layer = layer_opt.as_mut().unwrap();
             layer.ensure_chunk_is_complete(*tx, *ty);
         }
     }

@@ -1,5 +1,5 @@
 use crate::bounds::Bounds;
-use crate::test_utils::setup_test_logger;
+use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 
 #[test]
 fn test_get_index_for_coords_within_bounds() {

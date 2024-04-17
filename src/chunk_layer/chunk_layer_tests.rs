@@ -1,5 +1,5 @@
 use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::test_utils::setup_test_logger;
+use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 use std::fs;
 use std::str::FromStr;
 use uuid::Uuid;

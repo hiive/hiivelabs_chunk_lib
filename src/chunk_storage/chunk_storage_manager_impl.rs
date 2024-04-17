@@ -45,7 +45,7 @@ impl Drop for ChunkStorageManager {
                 let chunk_id = chunk.get_unique_id(true);
                 match storage_tx.send(ChunkStorageMessage::ToStore(chunk)) {
                     Ok(_) => {
-                        log::info!("ChunkStorageMessage: Flush chunk dispatch [{chunk_id}] {chunk_cache_key:?} success");
+                        log::info!("Flush chunk dispatch [{chunk_id}] {chunk_cache_key:?} success");
                     }
                     Err(e) => {
                         log::error!(
@@ -58,26 +58,24 @@ impl Drop for ChunkStorageManager {
 
             match storage_tx.send(ChunkStorageMessage::ShutDown) {
                 Ok(_) => {
-                    log::info!("ChunkStorageMessage::ShutDown dispatched");
+                    log::info!("ShutDown dispatched");
                 }
                 Err(e) => {
-                    log::error!("ChunkStorageMessage::ShutDown dispatch failure - [{e:?}]")
+                    log::error!("ShutDown dispatch failure - [{e:?}]")
                 }
             }
         }
 
         // wait for shutdown complete notification message
         match Some(&self.shutdown_complete_rx) {
-            Some(rx) => {
-                match rx.recv() {
-                    Ok(shutdown_complete) => {
-                        log::info!("ChunkStorageMessage::ShutDown complete acknowledged: [{shutdown_complete}]");
-                    }
-                    Err(err) => {
-                        log::error!("ChunkStorageMessage::ShutDown complete acknowledgement error: [{err:?}]")
-                    }
+            Some(rx) => match rx.recv() {
+                Ok(shutdown_complete) => {
+                    log::info!("ShutDown complete acknowledged: [{shutdown_complete}]");
                 }
-            }
+                Err(err) => {
+                    log::error!("ShutDown complete acknowledgement error: [{err:?}]")
+                }
+            },
             None => {
                 log::error!("No shutdown complete receiver!")
             }
@@ -85,10 +83,10 @@ impl Drop for ChunkStorageManager {
         // wait before attempting to shut stuff down.
         thread::sleep(std::time::Duration::from_millis(100));
         let mut chunk_storage_thread_handler = self.chunk_storage_thread_handler.lock().unwrap();
-        log::info!("ChunkStorageManager: waiting for storage thread shutdown");
+        log::info!("waiting for storage thread shutdown");
         chunk_storage_thread_handler.join();
-        log::info!("ChunkStorageMessage: flushed {flush_count}/{to_flush_count} chunks");
-        log::info!("ChunkStorageManager: storage thread shutdown successfully");
+        log::info!("flushed {flush_count}/{to_flush_count} chunks");
+        log::info!("storage thread shutdown successfully");
     }
 }
 
@@ -122,6 +120,21 @@ impl ChunkStorageManager {
         }
     }
 
+    ///
+    /// peek_transient grabs a copy of the chunk without altering the lru.
+    /// If it's in the lru, it peeks it out. If it's not, it loads it from disk.
+    pub(crate) fn peek_transient(&self, cx: isize, cy: isize) -> Option<Chunk> {
+        let chunk_cache_key = (cx, cy);
+        let chunk_opt = self.chunks.peek(&chunk_cache_key).cloned();
+        match chunk_opt {
+            Some(_) => chunk_opt,
+            None => {
+                // is it in the storage cache?
+                self.load_chunk_from_storage(cx, cy)
+            }
+        }
+    }
+
     pub(crate) fn get(&mut self, cx: isize, cy: isize) -> Option<&mut Chunk> {
         let chunk_cache_key = (cx, cy);
         // log::info!("ChunkStorageManager:get([{chunk_cache_key:?}]) : START");
@@ -132,44 +145,7 @@ impl ChunkStorageManager {
         // didn't find the chunk.
         // try to load it and insert it.
         if !chunk_found {
-            // log::info!("ChunkStorageManager:get([{chunk_cache_key:?}]) : NOT FOUND in mem-cache");
-            let chunk_guid_bytes = create_seed_from_guid_x_y(self.owning_layer_guid, cx, cy);
-            let chunk_unique_id = get_chunk_unique_id(chunk_guid_bytes, cx, cy, true);
-
-            // short circuit - don't load chunk if we know it's not in the cache
-            if !self.stored_chunk_ids.contains(&chunk_unique_id) {
-                log::info!("ChunkStorageManager:get() chunk not in storage: [{chunk_unique_id}] {chunk_cache_key:?}");
-                return None;
-            }
-
-            log::info!("ChunkStorageManager:get() attempting load chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
-
-            // check if the chunk is in storage
-            let chunk: Option<Chunk> = {
-                let mut attempts = 0;
-                loop {
-                    let chunk_storage_thread_handler_opt =
-                        self.chunk_storage_thread_handler.try_lock();
-                    let loaded_chunk = match chunk_storage_thread_handler_opt {
-                        Ok(chunk_storage_thread_handler) => {
-                            chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
-                        }
-                        Err(err) => {
-                            if attempts >= MAX_ATTEMPTS {
-                                log::error!("failed to obtain read lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
-                            }
-                            attempts += 1;
-                            None
-                        }
-                    };
-
-                    // exit the loop if we've got something, or we're out of attempts
-                    if loaded_chunk.is_some() || attempts >= MAX_ATTEMPTS {
-                        break loaded_chunk;
-                    }
-                    thread::sleep(std::time::Duration::from_millis(10));
-                }
-            };
+            let chunk = self.load_chunk_from_storage(cx, cy);
 
             if chunk.is_some() {
                 // self.check_cache_size();
@@ -195,6 +171,47 @@ impl ChunkStorageManager {
         chunk_opt
     }
 
+    fn load_chunk_from_storage(&self, cx: isize, cy: isize) -> Option<Chunk> {
+        // log::info!("ChunkStorageManager:get([{chunk_cache_key:?}]) : NOT FOUND in mem-cache");
+        let chunk_guid_bytes = create_seed_from_guid_x_y(self.owning_layer_guid, cx, cy);
+        let chunk_unique_id = get_chunk_unique_id(chunk_guid_bytes, cx, cy, true);
+        let chunk_cache_key = (cx, cy);
+        // short circuit - don't load chunk if we know it's not in the cache
+        if !self.stored_chunk_ids.contains(&chunk_unique_id) {
+            log::info!("get() chunk not in storage: [{chunk_unique_id}] {chunk_cache_key:?}");
+            return None;
+        }
+
+        log::info!("get() attempting load chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
+
+        // check if the chunk is in storage
+        let chunk: Option<Chunk> = {
+            let mut attempts = 0;
+            loop {
+                let chunk_storage_thread_handler_opt = self.chunk_storage_thread_handler.try_lock();
+                let loaded_chunk = match chunk_storage_thread_handler_opt {
+                    Ok(chunk_storage_thread_handler) => {
+                        chunk_storage_thread_handler.load_chunk(&chunk_unique_id)
+                    }
+                    Err(err) => {
+                        if attempts >= MAX_ATTEMPTS {
+                            log::error!("failed to obtain read lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
+                        }
+                        attempts += 1;
+                        None
+                    }
+                };
+
+                // exit the loop if we've got something, or we're out of attempts
+                if loaded_chunk.is_some() || attempts >= MAX_ATTEMPTS {
+                    break loaded_chunk;
+                }
+                thread::sleep(std::time::Duration::from_millis(10));
+            }
+        };
+        chunk
+    }
+
     fn check_cache_size(&mut self) {
         while self.chunks.len() >= self.lru_cache_size {
             // the cache is full.
@@ -204,11 +221,15 @@ impl ChunkStorageManager {
 
                 if !oldest_chunk.is_dirty {
                     // no need to store it if it hasn't changed.
-                    log::info!("ChunkStorageManager:insert() evicting clean chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
+                    log::info!(
+                        "insert() evicting clean chunk: [{chunk_unique_id}] {chunk_cache_key:?}"
+                    );
                     continue;
                 }
 
-                log::info!("ChunkStorageManager:insert() evicting dirty chunk: [{chunk_unique_id}] {chunk_cache_key:?}");
+                log::info!(
+                    "insert() evicting dirty chunk: [{chunk_unique_id}] {chunk_cache_key:?}"
+                );
                 // need to store this chunk
                 if let Some(storage_tx) = &self.storage_tx {
                     storage_tx
@@ -221,7 +242,7 @@ impl ChunkStorageManager {
 
     pub(crate) fn insert(&mut self, cx: isize, cy: isize, chunk: Chunk) {
         log::info!(
-            "ChunkStorageManager:insert() inserting chunk: [{}] ({cx}, {cy})",
+            "insert() inserting chunk: [{}] ({cx}, {cy})",
             chunk.get_unique_id(true)
         );
 

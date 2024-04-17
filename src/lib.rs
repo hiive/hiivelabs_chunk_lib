@@ -7,8 +7,7 @@ mod chunk_seed_utils;
 mod chunk_storage;
 pub mod tilemap_datasource;
 
-#[cfg(test)]
-mod test_utils;
+mod chunk_generator;
 
 pub mod prelude {
     // exports

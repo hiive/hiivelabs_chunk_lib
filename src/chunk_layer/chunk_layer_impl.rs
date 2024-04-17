@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -7,6 +8,7 @@ use uuid::Uuid;
 
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
+use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
 use crate::chunk_storage::chunk_storage_manager_impl::ChunkStorageManager;
 
@@ -295,8 +297,26 @@ impl ChunkLayer {
     }
 
     pub fn get_at(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
+        self.get_at_internal(tx, ty, false)
+    }
+
+    pub fn get_at_or_default(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
+        let chunk_opt = self.get_at_internal(tx, ty, true);
+        match chunk_opt {
+            None => self.out_of_bounds_value_index,
+            Some(_) => chunk_opt,
+        }
+    }
+
+    #[cfg(experimental)]
+    pub(crate) fn peek_at_or_default(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
+        // let chunk_opt = self.get_at_internal(tx, ty, true);
+        // match chunk_opt {
+        //     None => self.out_of_bounds_value_index,
+        //     Some(_) => chunk_opt,
+        // }
         let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) =
-            self.tile_bounds.get_bound_coords(false);
+            self.tile_bounds.get_bound_coords(true);
         let oob =
             tx < cropped_x_min || tx >= cropped_x_max || ty < cropped_y_min || ty >= cropped_y_max;
         if oob {
@@ -305,14 +325,13 @@ impl ChunkLayer {
         }
 
         //
-        let opt_chunk_idx = self.get_first_chunk_index_at_tile_coords(tx, ty);
-        match opt_chunk_idx {
-            Some(chunk_idx) => {
+        match self.get_first_chunk_index_at_tile_coords(tx, ty) {
+            Some(chunk_ix) => {
                 let (cx, cy) = self
-                    .get_chunk_coords_for_hash_index(chunk_idx)
+                    .get_chunk_coords_for_hash_index(chunk_ix)
                     .expect("Invalid chunk index!"); // should be always good
-                let mut chunks = self.chunks.borrow_mut();
-                let chunk = chunks.get(cx, cy);
+                let chunks = self.chunks.borrow();
+                let chunk = chunks.peek_transient(cx, cy);
 
                 match chunk {
                     Some(chunk) => chunk.get_at(tx, ty),
@@ -323,33 +342,34 @@ impl ChunkLayer {
         }
     }
 
-    pub fn get_at_or_default(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
-        let (min_x, min_y, max_x, max_y) = self.tile_bounds.get_bound_coords(true);
-        if tx < min_x || tx >= max_x || ty < min_y || ty >= max_y {
+    #[inline(always)]
+    fn get_at_internal(&mut self, tx: isize, ty: isize, include_padding: bool) -> Option<TIndex> {
+        let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) =
+            self.tile_bounds.get_bound_coords(include_padding);
+        let oob =
+            tx < cropped_x_min || tx >= cropped_x_max || ty < cropped_y_min || ty >= cropped_y_max;
+        if oob {
             // short circuit
             return self.out_of_bounds_value_index;
         }
-        let opt_chunk_idx = self.get_first_chunk_index_at_tile_coords(tx, ty);
-        match opt_chunk_idx {
-            Some(chunk_idx) => {
+
+        //
+        let opt_chunk_ix = self.get_first_chunk_index_at_tile_coords(tx, ty);
+        match opt_chunk_ix {
+            Some(chunk_ix) => {
                 let (cx, cy) = self
-                    .get_chunk_coords_for_hash_index(chunk_idx)
+                    .get_chunk_coords_for_hash_index(chunk_ix)
                     .expect("Invalid chunk index!"); // should be always good
+
                 let mut chunks = self.chunks.borrow_mut();
                 let chunk = chunks.get(cx, cy);
 
                 match chunk {
-                    Some(chunk) => chunk.get_at_or_default(tx, ty, self.out_of_bounds_value_index),
-                    _ => {
-                        // println!("Got default value 2: {:?}", self.out_of_bounds_value_index);
-                        self.out_of_bounds_value_index
-                    }
+                    Some(chunk) => chunk.get_at(tx, ty),
+                    _ => None, // Either the index is out of bounds or the Option<ChunkTile<T>> is None
                 }
             }
-            None => {
-                // println!("Got default value 3: {:?}", self.out_of_bounds_value_index);
-                self.out_of_bounds_value_index
-            }
+            None => None,
         }
     }
 
@@ -380,7 +400,7 @@ impl ChunkLayer {
         (tx / 2, ty / 2)
     }
 
-    pub(crate) fn ensure_chunk_is_complete(&self, tx: isize, ty: isize) {
+    pub(crate) fn ensure_chunk_is_complete(&mut self, tx: isize, ty: isize) {
         if self.layer_id == 0 {
             // nothing to do.
             // layer zero is always considered complete as it's
@@ -401,62 +421,121 @@ impl ChunkLayer {
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
         // iterate through the chunks.
-
+        // let chunk_generator = crate::chunk_generator::chunk_seeded_interpolator_impl::ChunkSeededInterpolator;
+        let chunk_generator = crate::chunk_generator::chunk_doubler_impl::ChunkDoubler;
         // println!();
         for (_chunk_ix, (cx, cy)) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
-            let mut chunks = self.chunks.borrow_mut();
-            let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
-            if !chunk.is_complete() {
+            let (chunk_is_complete, chunk_bounds) = {
+                let mut chunks = self.chunks.borrow_mut();
+                let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
+                (chunk.is_complete(), chunk.bounds.clone())
+            };
+            if !chunk_is_complete {
                 // the chunk has unset tiles, so let's complete it.
+                // let's get the parent tiles that cover this chunk
+                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
 
-                // for initial purposes, we are just going to do a simple doubling up
-                // of the parent.
-
-                // get the parent layer.
-                // it has to be mutable, because we are accessing chunks in an lru cache which
-                // can change based on retrieval.
-                let mut parent_layer_ref = self.parent_layer.borrow_mut();
-                let parent_layer: &mut ChunkLayer = parent_layer_ref
-                    .as_mut()
-                    .expect("No parent layer for this layer");
-
-                // get the layer relative tile coordinates for the area that needs
-                // to be set in this chunk
-                let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
-                    chunk.bounds.get_bound_coords(true);
-
-                // loop over the layer tile coordinates
-                for this_layer_y in this_layer_y0..this_layer_y1 {
-                    for this_layer_x in this_layer_x0..this_layer_x1 {
-                        // the parent coordinates in the parent layer
-                        let (parent_x, parent_y) = self
-                            .convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
-
-                        // get the parent tile
-                        let parent_tile = {
-                            // check if the parent tile is set.
-                            // (nb. only the top layer has a default tile value set).
-                            match parent_layer.get_at_or_default(parent_x, parent_y) {
-                                None => {
-                                    // the source layer tile is unset
-                                    // we need to call this method recursively
-                                    // for the parent layer at the parent coordinates
-                                    parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
-                                    // get the parent tile again. It should be set this time.
-                                    parent_layer
-                                        .get_at(parent_x, parent_y)
-                                        .expect("Parent chunk tile is not set.")
-                                }
-                                Some(t) => t,
-                            }
-                        };
-                        // set the tile vale in the chunk from the parent tile value
-                        let _ = chunk.set_at(this_layer_x, this_layer_y, parent_tile);
-                    }
-                }
+                // generate the chunk.
+                chunk_generator.generate_chunk_from_parent(chunk_bounds, self, parent_tiles);
             }
         }
+    }
+
+    fn get_parent_tiles_for_expansion(
+        &mut self,
+        chunk_bounds: &Bounds,
+    ) -> IndexMap<(isize, isize), TIndex> {
+        // let's get the parent layer tiles that we are going to need...
+        // a bit ugly, but it will work
+        let parent_tiles = {
+            let child_capacity = chunk_bounds.get_tile_count(true);
+            let mut expansion_tiles = IndexMap::with_capacity(child_capacity);
+
+            // get the parent layer.
+            // it has to be mutable, because we are accessing chunks in an lru cache which
+            // can change based on retrieval.
+            let mut parent_layer_ref = self.parent_layer.borrow_mut();
+            let parent_layer: &mut ChunkLayer = parent_layer_ref
+                .as_mut()
+                .expect("No parent layer for this layer");
+
+            let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
+                chunk_bounds.get_bound_coords(true);
+
+            let parent_capacity = parent_layer.tile_bounds.get_tile_count(true);
+            let mut parent_tiles_cache = IndexMap::with_capacity(parent_capacity);
+
+            let padding = self.tile_bounds.padding as isize;
+
+            // let mut parent_cx = -1_isize;
+            // let mut parent_cy = -1_isize;
+            // let mut parent_chunk: Option<Chunk> = None;
+            for this_layer_y in this_layer_y0 - padding..this_layer_y1 + padding {
+                for this_layer_x in this_layer_x0 - padding..this_layer_x1 + padding {
+                    // the parent coordinates in the parent layer
+                    let (parent_x, parent_y) = parent_layer
+                        .convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
+                    // check to see if we cached it.
+                    if let Some(tile_value) = parent_tiles_cache.get(&(parent_x, parent_y)) {
+                        // short circuit if we did
+                        expansion_tiles.insert((this_layer_x, this_layer_y), *tile_value);
+                        continue;
+                    }
+
+                    // get the parent tile
+                    let tile_value = {
+                        /*
+                        let parent_chunk_changed = {
+                            let (p_cx, p_cy) = parent_layer.chunk_coords_to_tile_coords(parent_x, parent_y);
+                            if p_cx != parent_cx && p_cy != parent_cy {
+                                // different chunk
+                                parent_cx = p_cx;
+                                parent_cy = p_cy;
+                                true
+                            }
+                            else {
+                                false
+                            }
+                        };
+                        // check if the parent tile is set.
+                        // (nb. only the top layer has a default tile value set).
+
+                        if parent_chunk_changed {
+                            parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
+                            let mut parent_chunks = &mut parent_layer.chunks;
+                            parent_chunk = parent_chunks.borrow_mut().get(parent_cx, parent_cy).cloned();
+                        };
+                        let pcc = parent_chunk.clone().unwrap();
+                        let t_value = pcc.get_at(parent_x - pcc.bounds.x, parent_y - pcc.bounds.y).unwrap();
+                        t_value
+                        */
+
+
+                        match parent_layer.get_at_or_default(parent_x, parent_y) {
+                            None => {
+                                // the source layer tile is unset
+                                // we need to call this method recursively
+                                // for the parent layer at the parent coordinates
+                                parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
+                                // get the parent tile again. It should be set this time.
+
+                                parent_layer
+                                    .get_at(parent_x, parent_y)
+                                    .expect("Parent chunk tile is not set.")
+                            }
+                            Some(t) => t,
+                        }
+                    };
+                    // save in expansion tiles
+                    expansion_tiles.insert((this_layer_x, this_layer_y), tile_value);
+                    // put in cache.
+                    parent_tiles_cache.insert((parent_x, parent_y), tile_value);
+                }
+            }
+            expansion_tiles
+        };
+        parent_tiles
     }
 
     pub(crate) fn log_diagnostics(&mut self, with_padding: bool) {

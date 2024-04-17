@@ -83,7 +83,7 @@ impl ChunkStorageThreadHandler {
                                     attempts += 1;
                                     thread::sleep(std::time::Duration::from_millis(100));
                                     if attempts > 5 {
-                                        log::error!("ChunkStorageThreadHandler: failed to obtain write lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
+                                        log::error!("failed to obtain write lock for [{chunk_unique_id}] {chunk_cache_key:?} : [{err:?}]");
                                         break;
                                     }
                                 }
@@ -91,22 +91,20 @@ impl ChunkStorageThreadHandler {
                         }
                     }
                     ChunkStorageMessage::ShutDown => {
-                        log::info!("ChunkStorageThreadHandler: Received shutdown request");
+                        log::info!("Received shutdown request");
                         match shutdown_complete_tx.send(true) {
                             Ok(_) => {
-                                log::info!(
-                                    "ChunkStorageThreadHandler: Acknowledged shutdown request"
-                                )
+                                log::info!("Acknowledged shutdown request")
                             }
                             Err(err) => {
-                                log::error!("ChunkStorageThreadHandler: Shutdown complete notification FAILED: [{err:?}]")
+                                log::error!("Shutdown complete notification FAILED: [{err:?}]")
                             }
                         }
                         break;
                     }
                 }
             }
-            log::info!("ChunkStorageThreadHandler: Shutting Down...");
+            log::info!("Shutting Down...");
         });
         thread_handle
     }

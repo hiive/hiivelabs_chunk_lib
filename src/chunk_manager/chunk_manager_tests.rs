@@ -1,6 +1,5 @@
 use crate::prelude::ChunkManager;
 use crate::prelude::TileMapDataSource;
-use crate::test_utils::*;
 
 use hiivelabs_storage_lib::prelude::UniqueId;
 use rand::rngs::StdRng;
@@ -9,6 +8,7 @@ use std::fmt::Formatter;
 use std::time::Instant;
 use std::{fmt, fs};
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::utils::test_utils::*;
 
 /// A wrapper around `u8` that implements `Debug` to display the value in hexadecimal.
 #[derive(Clone)]
