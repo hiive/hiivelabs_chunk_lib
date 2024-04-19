@@ -431,9 +431,9 @@ impl ChunkLayer {
                 let mut chunks = self.chunks.borrow_mut();
                 let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
                 if chunk.is_complete() {
-                    Some(chunk.bounds.clone())
-                } else {
                     None
+                } else {
+                    Some(chunk.bounds.clone())
                 }
             };
             if let Some(chunk_bounds) = chunk_bounds_opt {
