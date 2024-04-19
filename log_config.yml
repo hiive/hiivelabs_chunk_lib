@@ -23,7 +23,13 @@ root:
     - stdout
 
 loggers:
-  hiivelabs_chunk_lib:
+#  hiivelabs_chunk_lib:
+#    level: debug
+#    appenders:
+#      - stdout
+#    additive: false
+
+  hiivelabs_rand_utils_lib:
     level: debug
     appenders:
       - stdout

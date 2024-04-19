@@ -5,7 +5,8 @@ use std::rc::Rc;
 use uuid::Uuid;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
+use crate::chunk_seed_utils::chunk_seed_utils_impl::{create_seed_from_guid_bytes_x_y, get_chunk_manager_unique_id};
+
 use crate::tilemap_datasource::TileMapDataSource;
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
@@ -20,6 +21,13 @@ pub struct ChunkManager<T> {
     pub(crate) out_of_bounds_value_index: TIndex,
     pub(crate) manager_guid_bytes: [u8; 16],
     // pub(crate) rnd : SmallRng
+}
+
+impl<T> Drop for ChunkManager<T> {
+    fn drop(&mut self) {
+        let pool_id = self.get_unique_id(true);
+        hiivelabs_rand_utils_lib::prelude::shutdown_worker_pool(&pool_id);
+    }
 }
 
 impl<T: std::fmt::Debug> ChunkManager<T> {
@@ -224,6 +232,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             // nothing to do - the top layer is always complete.
             return;
         }
+
+        //
+        let pool_id = self.get_unique_id(true);
+
         // let's build a map of coordinates
         // for the corresponding tile coordinates in each layer 0 <= z
         // layer z - 1's coordinates are half of layer z.
@@ -236,7 +248,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             .collect();
 
         // iterate through the layers, from 1 to z, ensuring that the specified layer chunk
-        // is complete so it can be used to calculate the next layer corresponding chunk.
+        // is complete, so it can be used to calculate the next layer corresponding chunk.
+
+        // let mut func_vec = Vec::with_capacity(self.layers.len());
+
         for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
             let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
             let mut layer_opt = layer_rc.borrow_mut();
@@ -274,6 +289,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let width_in_chunks = source.width() / chunk_width_in_tiles;
         let height_in_chunks = source.height() / chunk_height_in_tiles;
         let out_of_bounds_value_index = source.get_default_out_of_bounds_value_index() as TIndex;
+
+        // initialize the worker thread pool
+        let num_cores = usize::min(num_cpus::get(), 6);
+        let pool_id = get_chunk_manager_unique_id::<T>(manager_guid_bytes, true);
+        hiivelabs_rand_utils_lib::prelude::create_worker_pool(&pool_id, num_cores);
 
         // create the layers
         let mut layers = Vec::with_capacity(layer_count);
