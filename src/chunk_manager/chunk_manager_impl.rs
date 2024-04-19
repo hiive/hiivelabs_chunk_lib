@@ -1,7 +1,9 @@
 use hiivelabs_storage_lib::prelude::UniqueId;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::hash::BuildHasherDefault;
 use std::rc::Rc;
+use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
@@ -462,7 +464,9 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let height = source.height();
 
         // build the map of vec index to (x, y) for use when draining the source vector
-        let mut ix_map = HashMap::with_capacity(width * height);
+        // let mut ix_map = HashMap::with_capacity(width * height);
+        // let mut ix_map = HashMap::<usize, (isize, isize), nohash_hasher::BuildNoHashHasher<usize>>::with_capacity_and_hasher(width * height, nohash_hasher::BuildNoHashHasher::default());
+        let mut ix_map = FxHashMap::with_capacity_and_hasher(width * height, BuildHasherDefault::default());
         for y in 0..height {
             for x in 0..width {
                 if let Some(ix) = source.get_index_of(x, y) {

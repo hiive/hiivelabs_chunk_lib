@@ -1,3 +1,4 @@
+use std::hash::BuildHasherDefault;
 use crate::bounds::Bounds;
 use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_layer::{ChunkLayer, TIndex};
@@ -5,6 +6,7 @@ use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_
 use indexmap::IndexMap;
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
+use rustc_hash::FxHasher;
 
 pub(crate) struct ChunkSeededInterpolator;
 
@@ -13,7 +15,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         &self,
         chunk_bounds: Bounds,
         child_layer: &mut ChunkLayer,
-        parent_tiles: IndexMap<(isize, isize), TIndex>,
+        parent_tiles: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>>,
     ) {
         // get the layer relative tile coordinates for the area that needs
         // to be set in this chunk
@@ -23,7 +25,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         let w = 2 + this_layer_x1 - this_layer_x0;
         let h = 2 + this_layer_y1 - this_layer_y0;
         let s = (w * h) as usize;
-        let mut tiles = IndexMap::with_capacity(s);
+        let mut tiles: IndexMap<(isize, isize), usize, BuildHasherDefault<FxHasher>> = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
 
         // first pass - just double the chunks
         for this_layer_y in this_layer_y0..this_layer_y1 {

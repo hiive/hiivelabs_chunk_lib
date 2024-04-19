@@ -1,6 +1,8 @@
 use indexmap::IndexMap;
 use std::cell::RefCell;
+use std::hash::BuildHasherDefault;
 use std::rc::Rc;
+use rustc_hash::FxHasher;
 
 use hiivelabs_storage_lib::prelude::UniqueId;
 use smallvec::SmallVec;
@@ -452,12 +454,13 @@ impl ChunkLayer {
     fn get_parent_tiles_for_expansion(
         &mut self,
         chunk_bounds: &Bounds,
-    ) -> IndexMap<(isize, isize), TIndex> {
+    ) -> IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>> {
         // let's get the parent layer tiles that we are going to need...
         // a bit ugly, but it will work
         let parent_tiles = {
             let child_capacity = chunk_bounds.get_tile_count(true);
-            let mut expansion_tiles = IndexMap::with_capacity(child_capacity);
+            // nohash_hasher::BuildNoHashHasher<(isize, isize)>
+            let mut expansion_tiles = IndexMap::with_capacity_and_hasher(child_capacity, BuildHasherDefault::default());
 
             // get the parent layer.
             // it has to be mutable, because we are accessing chunks in an lru cache which
@@ -471,7 +474,7 @@ impl ChunkLayer {
                 chunk_bounds.get_bound_coords(true);
 
             let parent_capacity = parent_layer.tile_bounds.get_tile_count(true);
-            let mut parent_tiles_cache = IndexMap::with_capacity(parent_capacity);
+            let mut parent_tiles_cache: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>> = IndexMap::with_capacity_and_hasher(parent_capacity, BuildHasherDefault::default());
 
             let padding = self.tile_bounds.padding as isize;
 

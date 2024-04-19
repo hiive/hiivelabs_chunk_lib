@@ -263,7 +263,10 @@ fn test_unique_id() {
 #[test]
 fn test_can_get_from_non_zero_layer() {
     setup_test_logger();
-    let guid = Some(Uuid::parse_str("00000000-0000-0000-0000-111111111111").unwrap());
+
+    let guid_str = "00000000-0000-0000-0000-111111111111";
+    let _ = fs::remove_file(format!("{guid_str}.world"));
+    let guid = Some(Uuid::parse_str(guid_str).unwrap());
     let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
 
     log::info!("[INITIAL]");

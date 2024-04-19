@@ -1,7 +1,9 @@
+use std::hash::BuildHasherDefault;
 use crate::bounds::Bounds;
 use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use indexmap::IndexMap;
+use rustc_hash::FxHasher;
 
 pub(crate) struct ChunkDoubler;
 
@@ -10,7 +12,7 @@ impl ChunkGenerator for ChunkDoubler {
         &self,
         chunk_bounds: Bounds,
         child_layer: &mut ChunkLayer,
-        parent_tiles: IndexMap<(isize, isize), TIndex>,
+        parent_tiles: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>>,
     ) {
         // get the layer relative tile coordinates for the area that needs
         // to be set in this chunk
