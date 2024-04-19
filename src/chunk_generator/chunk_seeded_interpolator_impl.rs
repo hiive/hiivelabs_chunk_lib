@@ -35,7 +35,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
                     .get_at(this_layer_x, this_layer_y)
                     .unwrap_or(parent_tile);
                 // set the tile vale in the chunk from the parent tile value
-                let ix = (this_layer_x + 1) + (this_layer_y + 1) * w;
+                // let ix = (this_layer_x + 1) + (this_layer_y + 1) * w;
                 tiles.insert((this_layer_x, this_layer_y), tile_value);
             }
         }
@@ -57,7 +57,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
 
         // second pass - copy some chunks from their neighbors
         for this_layer_y in (this_layer_y0 - 1..this_layer_y1 + 1).step_by(2) {
-            for this_layer_x in (this_layer_x0 - 1..this_layer_x1 + 1)
+            for this_layer_x in this_layer_x0 - 1..this_layer_x1 + 1
             /*.step_by(2)*/
             {
                 let dx = (rng.next_u32() % 3) as isize - 1;
@@ -78,7 +78,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         }
 
         // third pass - copy some chunks from their neighbors
-        for this_layer_y in (this_layer_y0 - 1..this_layer_y1 + 1)
+        for this_layer_y in this_layer_y0 - 1..this_layer_y1 + 1
         /*.step_by(2)*/
         {
             for this_layer_x in (this_layer_x0 - 1..this_layer_x1 + 1).step_by(2) {

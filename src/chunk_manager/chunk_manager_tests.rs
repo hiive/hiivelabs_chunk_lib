@@ -290,7 +290,7 @@ fn test_can_get_from_non_zero_layer() {
         .expect("Layer bounds error");
 
     let (padded_x_min, padded_y_min, padded_x_max, padded_y_max) = padded_bounds_3;
-    let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) = cropped_bounds_3;
+    let (_cropped_x_min, _cropped_y_min, _cropped_x_max, _cropped_y_max) = cropped_bounds_3;
     log::info!("Layer 3 padded bounds: {padded_bounds_3:?}");
     log::info!("Layer 3 cropped bounds: {padded_bounds_3:?}");
     log::info!(

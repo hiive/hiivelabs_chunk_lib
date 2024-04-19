@@ -425,15 +425,18 @@ impl ChunkLayer {
             crate::chunk_generator::chunk_seeded_interpolator_impl::ChunkSeededInterpolator;
         // let chunk_generator = crate::chunk_generator::chunk_doubler_impl::ChunkDoubler;
 
-        // println!();
         for (_chunk_ix, (cx, cy)) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
-            let (chunk_is_complete, chunk_bounds) = {
+            let chunk_bounds_opt = {
                 let mut chunks = self.chunks.borrow_mut();
                 let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
-                (chunk.is_complete(), chunk.bounds.clone())
+                if chunk.is_complete() {
+                    Some(chunk.bounds.clone())
+                } else {
+                    None
+                }
             };
-            if !chunk_is_complete {
+            if let Some(chunk_bounds) = chunk_bounds_opt {
                 // the chunk has unset tiles, so let's complete it.
                 // let's get the parent tiles that cover this chunk
                 let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
@@ -470,9 +473,6 @@ impl ChunkLayer {
 
             let padding = self.tile_bounds.padding as isize;
 
-            // let mut parent_cx = -1_isize;
-            // let mut parent_cy = -1_isize;
-            // let mut parent_chunk: Option<Chunk> = None;
             for this_layer_y in this_layer_y0 - padding..this_layer_y1 + padding {
                 for this_layer_x in this_layer_x0 - padding..this_layer_x1 + padding {
                     // the parent coordinates in the parent layer
@@ -487,32 +487,6 @@ impl ChunkLayer {
 
                     // get the parent tile
                     let tile_value = {
-                        /*
-                        let parent_chunk_changed = {
-                            let (p_cx, p_cy) = parent_layer.chunk_coords_to_tile_coords(parent_x, parent_y);
-                            if p_cx != parent_cx && p_cy != parent_cy {
-                                // different chunk
-                                parent_cx = p_cx;
-                                parent_cy = p_cy;
-                                true
-                            }
-                            else {
-                                false
-                            }
-                        };
-                        // check if the parent tile is set.
-                        // (nb. only the top layer has a default tile value set).
-
-                        if parent_chunk_changed {
-                            parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
-                            let mut parent_chunks = &mut parent_layer.chunks;
-                            parent_chunk = parent_chunks.borrow_mut().get(parent_cx, parent_cy).cloned();
-                        };
-                        let pcc = parent_chunk.clone().unwrap();
-                        let t_value = pcc.get_at(parent_x - pcc.bounds.x, parent_y - pcc.bounds.y).unwrap();
-                        t_value
-                        */
-
                         match parent_layer.get_at_or_default(parent_x, parent_y) {
                             None => {
                                 // the source layer tile is unset
