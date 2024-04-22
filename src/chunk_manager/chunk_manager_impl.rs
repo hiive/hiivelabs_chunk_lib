@@ -1,20 +1,40 @@
+
 use hiivelabs_storage_lib::prelude::UniqueId;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use indexmap::{IndexMap, IndexSet};
+use log::log;
+use rustc_hash::{FxHashMap, FxHasher};
+use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasherDefault;
-use std::rc::Rc;
-use rustc_hash::FxHashMap;
+use std::sync::{Arc, RwLock};
+
 use uuid::Uuid;
 
 use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::chunk_seed_utils::chunk_seed_utils_impl::{create_seed_from_guid_bytes_x_y, get_chunk_manager_unique_id};
+use crate::chunk_seed_utils::chunk_seed_utils_impl::{
+    create_seed_from_guid_bytes_x_y, get_chunk_manager_unique_id,
+};
 
 use crate::tilemap_datasource::TileMapDataSource;
+
+#[cfg(multithreaded_chunk_generation)]
+use hiivelabs_rand_utils_lib::prelude::{
+    create_worker_pool, shutdown_worker_pool, submit_message_to_worker_pool, WorkerPoolMessage,
+};
+#[cfg(multithreaded_chunk_generation)]
+use std::any::Any;
+#[cfg(multithreaded_chunk_generation)]
+use std::sync::mpsc::{self, Receiver, RecvError};
+#[cfg(multithreaded_chunk_generation)]
+use std::thread;
+#[cfg(multithreaded_chunk_generation)]
+use std::thread::JoinHandle;
+
+
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
 pub struct ChunkManager<T> {
-    pub(crate) layers: Vec<Rc<RefCell<Option<ChunkLayer>>>>,
+    pub(crate) layers: Vec<Arc<RwLock<Option<ChunkLayer>>>>,
     /// The width in tiles of the top level map data.
     pub width: usize,
     /// The height in tiles of the top level map data.
@@ -22,13 +42,28 @@ pub struct ChunkManager<T> {
     pub(crate) owned_values: Vec<T>,
     pub(crate) out_of_bounds_value_index: TIndex,
     pub(crate) manager_guid_bytes: [u8; 16],
-    // pub(crate) rnd : SmallRng
+    #[cfg(multithreaded_chunk_generation)]
+    thread_join_handle: Option<JoinHandle<()>>,
+    #[cfg(multithreaded_chunk_generation)]
+    worker_pool_name: String,
+    #[cfg(multithreaded_chunk_generation)]
+    job_complete_rx: Receiver<usize>,
 }
 
+#[cfg(multithreaded_chunk_generation)]
 impl<T> Drop for ChunkManager<T> {
     fn drop(&mut self) {
-        let pool_id = self.get_unique_id(true);
-        hiivelabs_rand_utils_lib::prelude::shutdown_worker_pool(&pool_id);
+        shutdown_worker_pool(&self.worker_pool_name);
+
+        if let Some(thread_handle) = self.thread_join_handle.take() {
+            match thread_handle.join() {
+                Ok(_) => {
+                    log::info!("Chunk Manager thread has shutdown.");
+                    println!("Chunk Manager thread has shutdown.");
+                }
+                Err(e) => log::info!("Failed to join Chunk Manager thread: {e:?}"),
+            }
+        }
     }
 }
 
@@ -123,6 +158,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             chunk_height_in_tiles,
             chunk_padding_in_tiles,
         );
+        //#[cfg(multithreaded_chunk_generation)]
+        #[cfg(multithreaded_chunk_generation)]
+        let (thread_join_handle, worker_pool_name, job_complete_rx) =
+            ChunkManager::<T>::setup_chunk_creation_threads(&manager_guid_bytes, layers.clone());
 
         Self {
             layers,
@@ -131,7 +170,78 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             owned_values,
             out_of_bounds_value_index,
             manager_guid_bytes,
+            #[cfg(multithreaded_chunk_generation)]
+            thread_join_handle,
+            #[cfg(multithreaded_chunk_generation)]
+            worker_pool_name,
+            #[cfg(multithreaded_chunk_generation)]
+            job_complete_rx,
         }
+    }
+
+    #[cfg(multithreaded_chunk_generation)]
+    fn setup_chunk_creation_threads(
+        manager_guid_bytes: &[u8; 16],
+        layers: Vec<Arc<RwLock<Option<ChunkLayer>>>>,
+    ) -> (Option<JoinHandle<()>>, String, Receiver<usize>) {
+
+        // initialize the worker thread pool
+        let num_cores = usize::min(num_cpus::get(), 6);
+        let pool_name = get_chunk_manager_unique_id::<T>(manager_guid_bytes, true);
+
+        let (job_tx, job_rx) = mpsc::channel::<(Option<usize>, Option<usize>, Option<Box<dyn Any + Send>>)>();
+        let (job_complete_tx, job_complete_rx) = mpsc::channel::<usize>();
+        let thread_handle = thread::spawn(move || {
+            let mut thread_count_remaining = num_cores;
+            while let Ok((id, info, result_opt)) = job_rx.recv() {
+                match result_opt {
+                    None => {
+                        log::info!("Shutdown ack received for worker pool thread: [{id:?}]");
+                        // println!("Shutdown ack received for worker pool thread: [{id:?}]");
+                        thread_count_remaining -= 1;
+                    }
+                    Some(result) => {
+                        log::info!("Result received for worker pool thread: [{id:?}]");
+                        // println!("Result received for worker pool thread: [{id:?}]");
+                        if let Ok(index_map) = result.downcast::<IndexMap<
+                            (isize, isize),
+                            Option<TIndex>,
+                            BuildHasherDefault<FxHasher>,
+                        >>() {
+                            // `index_map` is now a `Box<IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>>`
+                            let layer_id = info.expect("No layer id!");
+                            let layer_arc = layers.get(layer_id).expect("Invalid layer arc");
+                            let mut layer_lock = layer_arc.try_write().expect("Can't get lock");
+                            let mut layer = layer_lock.as_mut().expect("Can't get layer");
+
+                            let mut index_map = *index_map;
+                            for ((tx, ty), t_opt) in index_map.drain(..) {
+                                match t_opt {
+                                    None => {
+                                        panic!("Should not be empty!")
+                                    }
+                                    Some(t) => {
+                                        let _ = layer.set_at(tx, ty, t);
+                                        // println!("[{}, {layer_id}]  ({tx},{ty},{layer_id}) -> {t}", id.unwrap());
+                                    }
+                                }
+                            }
+                            let _ = job_complete_tx.send(id.expect("No job id!"));
+                            // You can use `*index_map` to take the IndexMap out of the box if needed
+                        }
+                    }
+                }
+                if thread_count_remaining <= 0 {
+                    break;
+                }
+            }
+            log::info!("Shutting down chunk manager thread.");
+            // println!("Shutting down chunk manager thread.");
+        });
+
+        create_worker_pool(&pool_name, num_cores, Some(job_tx));
+        (Some(thread_handle), pool_name, job_complete_rx)
+
     }
 
     /// Returns the bounds (including padding) for the specified layer.
@@ -165,9 +275,12 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let some_layer = self.layers.get(z);
         match some_layer {
             Some(layer_rc) => {
-                let layer_opt = layer_rc.borrow();
-                let layer = layer_opt.as_ref().unwrap();
-                Ok(layer.tile_bounds.get_bound_coords(include_padding))
+                if let Ok(layer_lock) = layer_rc.try_read() {
+                    let layer = layer_lock.as_ref().unwrap();
+                    Ok(layer.tile_bounds.get_bound_coords(include_padding))
+                } else {
+                    Err("Couldn't lock layer")
+                }
             }
             _ => Err("Layer z coordinate out of bounds"),
         }
@@ -198,21 +311,25 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 self.ensure_layer_chunks_are_complete(x, y, z);
                 // the preceding method borrows layers,
                 // so has to run before the rest of the method.
-                let mut layer_opt = layer_rc.borrow_mut();
-                let layer = layer_opt.as_mut().unwrap();
-                // if we are out of bounds, we can short circuit and
-                // return the oob value from the top layer.
-                if x < 0
-                    || y < 0
-                    || x >= layer.tile_bounds.width as isize
-                    || y >= layer.tile_bounds.width as isize
-                {
-                    return Ok(&self.owned_values[self.out_of_bounds_value_index]);
-                }
+                if let Ok(mut layer_lock) = layer_rc.try_write() {
+                    let mut layer = layer_lock.as_mut().unwrap();
 
-                match layer.get_at(x, y) {
-                    Some(ix) => Ok(&self.owned_values[ix]),
-                    _ => Err("(x, y) coordinates out of bounds"),
+                    // if we are out of bounds, we can short circuit and
+                    // return the oob value from the top layer.
+                    if x < 0
+                        || y < 0
+                        || x >= layer.tile_bounds.width as isize
+                        || y >= layer.tile_bounds.width as isize
+                    {
+                        return Ok(&self.owned_values[self.out_of_bounds_value_index]);
+                    }
+
+                    match layer.get_at(x, y) {
+                        Some(ix) => Ok(&self.owned_values[ix]),
+                        _ => Err("(x, y) coordinates out of bounds"),
+                    }
+                } else {
+                    Err("Couldn't lock layer")
                 }
             }
             _ => Err("Layer z coordinate out of bounds"),
@@ -234,10 +351,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             // nothing to do - the top layer is always complete.
             return;
         }
-
-        //
-        let pool_id = self.get_unique_id(true);
-
         // let's build a map of coordinates
         // for the corresponding tile coordinates in each layer 0 <= z
         // layer z - 1's coordinates are half of layer z.
@@ -251,14 +364,60 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // iterate through the layers, from 1 to z, ensuring that the specified layer chunk
         // is complete, so it can be used to calculate the next layer corresponding chunk.
-
-        // let mut func_vec = Vec::with_capacity(self.layers.len());
-
+        #[cfg(not(multithreaded_chunk_generation))] // this is the non-multithreaded one
         for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
             let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
-            let mut layer_opt = layer_rc.borrow_mut();
-            let layer = layer_opt.as_mut().unwrap();
-            layer.ensure_chunk_is_complete(*tx, *ty);
+            if let Ok(mut layer_lock) = layer_rc.try_write() {
+                let mut layer = layer_lock.as_mut().unwrap();
+                layer.ensure_chunk_is_complete(*tx, *ty);
+            }
+
+        }
+
+        #[cfg(multithreaded_chunk_generation)] // TODO - this is the multithreaded one
+        {
+            for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
+                let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
+                let tasks_opt = {
+                    if let Ok(mut layer_lock) = layer_rc.try_write() {
+                        let mut layer = layer_lock.as_mut().unwrap();
+                        // layer.ensure_chunk_is_complete(*tx, *ty);
+                        layer.get_ensure_chunk_is_complete_work(*tx, *ty)
+                    } else {
+                        None
+                    }
+                };
+
+                // submit tasks if there are any.
+                if let Some(mut tasks) = tasks_opt {
+                    let mut submitted_tasks = HashSet::with_capacity(tasks.len());
+                    // now send the tasks
+                    for task in tasks.drain(..) {
+                        match &task {
+                            WorkerPoolMessage::Shutdown => {}
+                            WorkerPoolMessage::WorkerTask(t) => {
+                                submitted_tasks.insert(t.task_id.expect("No task id"));
+                                // println!("Submitting: {}, {}", t.task_id.unwrap(), t.task_info.unwrap())
+                            }
+                        }
+
+                        submit_message_to_worker_pool(&self.worker_pool_name, task);
+                    }
+                    // need to wait for tasks to complete
+                    while submitted_tasks.len() != 0 {
+                        match self.job_complete_rx.recv() {
+                            Ok(task_id) => {
+                                submitted_tasks.remove(&task_id);
+                                // println!("Removing task [{task_id}]");
+                            }
+                            Err(err) => {
+                                panic!("Error removing job: {err}")
+                            }
+                        }
+                    }
+                }
+            }
+
         }
     }
 
@@ -287,19 +446,14 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         chunk_width_in_tiles: usize,
         chunk_height_in_tiles: usize,
         chunk_padding_in_tiles: usize,
-    ) -> (Vec<Rc<RefCell<Option<ChunkLayer>>>>, TIndex) {
+    ) -> (Vec<Arc<RwLock<Option<ChunkLayer>>>>, TIndex) {
         let width_in_chunks = source.width() / chunk_width_in_tiles;
         let height_in_chunks = source.height() / chunk_height_in_tiles;
         let out_of_bounds_value_index = source.get_default_out_of_bounds_value_index() as TIndex;
 
-        // initialize the worker thread pool
-        let num_cores = usize::min(num_cpus::get(), 6);
-        let pool_id = get_chunk_manager_unique_id::<T>(manager_guid_bytes, true);
-        hiivelabs_rand_utils_lib::prelude::create_worker_pool(&pool_id, num_cores);
-
         // create the layers
         let mut layers = Vec::with_capacity(layer_count);
-        let mut prev_layer = Rc::new(RefCell::new(None));
+        let mut prev_layer = Arc::new(RwLock::new(None));
         for layer_id in 0..layer_count {
             // each layer is double the width/height of the previous one.
             let layer_guid_bytes =
@@ -344,7 +498,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
             // create the layer
             let mut current_layer = ChunkLayer::new(
-                Rc::clone(&prev_layer),
+                Arc::clone(&prev_layer),
                 layer_id,
                 manager_guid_bytes,
                 layer_guid_bytes,
@@ -365,7 +519,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             prev_layer = ChunkLayer::make_layer_rc(Some(current_layer));
             // prev layer actually contains the current layer at this point,
             // so add it to the layer vector
-            layers.push(Rc::clone(&prev_layer));
+            layers.push(Arc::clone(&prev_layer));
         }
         // return the layer collection, and the index of the layer 0 OOB tile.
         (layers, out_of_bounds_value_index)
@@ -383,15 +537,16 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         log::info!("ChunkManager [{}]", self.get_unique_id(true));
 
         for layer_rc in &self.layers {
-            let mut layer_opt = layer_rc.borrow_mut();
-            let layer = layer_opt.as_mut().unwrap();
+            if let Ok(mut layer_lock) = layer_rc.try_write() {
+                let mut layer = layer_lock.as_mut().unwrap();
 
-            // for debug printing, replace the old oob value with the layer 0 one
-            let old_oob = layer.out_of_bounds_value_index;
-            layer.out_of_bounds_value_index = Some(self.out_of_bounds_value_index);
-            layer.log_diagnostics(with_padding);
-            // restore the old value when we're done.
-            layer.out_of_bounds_value_index = old_oob;
+                // for debug printing, replace the old oob value with the layer 0 one
+                let old_oob = layer.out_of_bounds_value_index;
+                layer.out_of_bounds_value_index = Some(self.out_of_bounds_value_index);
+                layer.log_diagnostics(with_padding);
+                // restore the old value when we're done.
+                layer.out_of_bounds_value_index = old_oob;
+            }
         }
     }
 
@@ -409,11 +564,13 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let layer_bounds = {
             let mut lbs = Vec::with_capacity(self.layers.len());
             for layer_rc in &self.layers {
-                let mut layer_opt = layer_rc.borrow_mut();
-                let layer = layer_opt.as_mut().unwrap();
-                let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
-                let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
-                lbs.push((print_bounds, cropped_bounds, layer.get_unique_id(true)));
+                if let Ok(mut layer_lock) = layer_rc.try_read() {
+                    let mut layer = layer_lock.as_ref().unwrap();
+
+                    let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
+                    let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
+                    lbs.push((print_bounds, cropped_bounds, layer.get_unique_id(true)));
+                }
             }
             lbs
         };
@@ -466,7 +623,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // build the map of vec index to (x, y) for use when draining the source vector
         // let mut ix_map = HashMap::with_capacity(width * height);
         // let mut ix_map = HashMap::<usize, (isize, isize), nohash_hasher::BuildNoHashHasher<usize>>::with_capacity_and_hasher(width * height, nohash_hasher::BuildNoHashHasher::default());
-        let mut ix_map = FxHashMap::with_capacity_and_hasher(width * height, BuildHasherDefault::default());
+        let mut ix_map =
+            FxHashMap::with_capacity_and_hasher(width * height, BuildHasherDefault::default());
         for y in 0..height {
             for x in 0..width {
                 if let Some(ix) = source.get_index_of(x, y) {
@@ -490,7 +648,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             }
         }
         // sanity check
-        let mut layer0_chunks = layer0.chunks.borrow_mut();
+        let mut layer0_chunks = layer0.chunks.try_lock().expect("Can't lock chunks");;
         let layer0_chunk = layer0_chunks.get(0, 0).expect("No parent chunk found.");
         let incomplete_count = layer0_chunk.get_unset_tile_count();
         let total_count = width * height;

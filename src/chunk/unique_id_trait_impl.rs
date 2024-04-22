@@ -8,6 +8,6 @@ impl UniqueId for Chunk {
             self.bounds.x / self.bounds.height as isize,
             self.bounds.y / self.bounds.height as isize,
         );
-        get_chunk_unique_id(self.guid_bytes, cx, cy, mangle)
+        get_chunk_unique_id(&self.guid_bytes, cx, cy, mangle)
     }
 }

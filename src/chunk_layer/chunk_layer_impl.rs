@@ -1,9 +1,13 @@
 use indexmap::IndexMap;
-use std::cell::RefCell;
+use rustc_hash::FxHasher;
+use std::any::Any;
 use std::hash::BuildHasherDefault;
 use std::rc::Rc;
-use rustc_hash::FxHasher;
+use std::sync::{Arc, RwLock};
+use hecs::spin::Mutex;
 
+use hiivelabs_rand_utils_lib::prelude::WorkerPoolMessage::WorkerTask;
+use hiivelabs_rand_utils_lib::prelude::{Task, WorkerPoolMessage};
 use hiivelabs_storage_lib::prelude::UniqueId;
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -23,21 +27,21 @@ pub struct ChunkLayer {
     pub(crate) chunk_width_in_tiles: usize,
     pub(crate) chunk_height_in_tiles: usize,
     // pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
-    pub(crate) chunks: RefCell<ChunkStorageManager>,
-    pub(crate) parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
+    pub(crate) chunks: Mutex<ChunkStorageManager>,
+    pub(crate) parent_layer: Arc<RwLock<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
     pub(crate) manager_guid_bytes: [u8; 16],
     pub(crate) layer_guid_bytes: [u8; 16],
 }
 
 impl ChunkLayer {
-    pub(crate) fn make_layer_rc(layer: Option<ChunkLayer>) -> Rc<RefCell<Option<ChunkLayer>>> {
-        Rc::new(RefCell::new(layer))
+    pub(crate) fn make_layer_rc(layer: Option<ChunkLayer>) -> Arc<RwLock<Option<ChunkLayer>>> {
+        Arc::new(RwLock::new(layer))
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        parent_layer: Rc<RefCell<Option<ChunkLayer>>>,
+        parent_layer: Arc<RwLock<Option<ChunkLayer>>>,
         layer_id: usize,
         manager_guid_bytes: [u8; 16],
         layer_guid_bytes: [u8; 16],
@@ -72,7 +76,7 @@ impl ChunkLayer {
             },
             chunk_width_in_tiles,
             chunk_height_in_tiles,
-            chunks: RefCell::new(ChunkStorageManager::new(
+            chunks: Mutex::new(ChunkStorageManager::new(
                 layer_chunk_lru_cache_size,
                 manager_guid_bytes,
                 layer_guid_bytes,
@@ -244,7 +248,7 @@ impl ChunkLayer {
         &self,
         chunk_ixs: &SmallVec<(isize, (isize, isize)), 4>,
     ) {
-        let mut chunks = self.chunks.borrow_mut();
+        let mut chunks = self.chunks.try_lock().expect("Can't lock chunks");
         for (_chunk_ix, (cx, cy)) in chunk_ixs {
             match chunks.get(*cx, *cy) {
                 Some(_chunk) => {
@@ -282,7 +286,8 @@ impl ChunkLayer {
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
         let mut error_count = 0;
-        let mut chunks = self.chunks.borrow_mut();
+        let mut chunks = self.chunks.try_lock().expect("Can't lock chunks");
+        // let chunks = chunks_lock.().expect("Can't get chunks");
         for (_chunk_ix, (cx, cy)) in chunk_ixs {
             let chunk = chunks.get(cx, cy).unwrap(); // we know the chunk exists.
 
@@ -363,7 +368,7 @@ impl ChunkLayer {
                     .get_chunk_coords_for_hash_index(chunk_ix)
                     .expect("Invalid chunk index!"); // should be always good
 
-                let mut chunks = self.chunks.borrow_mut();
+                let mut chunks = self.chunks.try_lock().expect("Can't lock chunks");
                 let chunk = chunks.get(cx, cy);
 
                 match chunk {
@@ -402,6 +407,109 @@ impl ChunkLayer {
         (tx / 2, ty / 2)
     }
 
+
+    #[cfg(multithreaded_chunk_generation)]
+    pub(crate) fn get_ensure_chunk_is_complete_work(
+        &mut self,
+        tx: isize,
+        ty: isize,
+    ) -> Option<Vec<WorkerPoolMessage>> {
+        if self.layer_id == 0 {
+            // nothing to do.
+            // layer zero is always considered complete as it's
+            // initialized from the user-provided map data.
+            return None;
+        }
+
+        // In order to ensure a chunk in this layer is complete,
+        // the source chunks in the chain of parent layers also need to be complete.
+        // note that there may be more than one source chunk in the parent layer,
+        // depending on padding boundaries coinciding in the layer chain.
+
+        // get the chunk indices fot the specified tile coordinates,
+        // There may be more than one chunk to complete if (tx, ty) is within the padding
+        // boundary.
+        // and make sure the chunk(s) exists.
+        let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
+        self.ensure_chunk_exists_by_indices(&chunk_ixs);
+
+        let mut tasks = Vec::with_capacity(chunk_ixs.len());
+        // iterate through the chunks.
+        for (chunk_ix, (cx, cy)) in &chunk_ixs {
+            // we know the chunk exists, because we ensured it earlier.
+            let chunk_bounds_opt = {
+                let mut chunks = self.chunks.try_lock().expect("Can't lock chunks");
+                let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
+                if chunk.is_complete() {
+                    None
+                } else {
+                    Some(chunk.bounds.clone())
+                }
+            };
+            if let Some(chunk_bounds) = chunk_bounds_opt {
+                // the chunk has unset tiles, so let's complete it.
+                // let's get the parent tiles that cover this chunk
+                // let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
+
+                // get the child tiles that we are going to expand into
+                let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
+                    chunk_bounds.get_bound_coords(true);
+                let w = 2 + this_layer_x1 - this_layer_x0;
+                let h = 2 + this_layer_y1 - this_layer_y0;
+                let s = (w * h) as usize;
+
+                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds, false);
+
+
+                let child_tiles = {
+                    let mut child_tiles: IndexMap<
+                        (isize, isize),
+                        Option<TIndex>,
+                        BuildHasherDefault<FxHasher>,
+                    > = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
+                    for this_layer_y in this_layer_y0..this_layer_y1 {
+                        for this_layer_x in this_layer_x0..this_layer_x1 {
+                            let child_tile_value = self.get_at(this_layer_x, this_layer_y);
+                            child_tiles.insert((this_layer_x, this_layer_y), child_tile_value);
+                        }
+                    }
+                    child_tiles
+                };
+
+                // create the chunk work task
+                // let task = WorkerPoolMessage::WorkerTask()
+                // generate the chunk.
+                let manager_guid_bytes = self.manager_guid_bytes.clone();
+                let layer_guid_bytes = self.layer_guid_bytes.clone();
+                let job: Box<dyn FnOnce() -> Option<Box<dyn Any + Send>> + Send> = Box::new(
+                    move || {
+                        let chunk_generator =
+                        crate::chunk_generator::chunk_seeded_interpolator_impl::ChunkSeededInterpolator;
+                        let result = chunk_generator.generate_chunk_work_from_parent(
+                            parent_tiles,
+                            manager_guid_bytes,
+                            layer_guid_bytes,
+                            chunk_bounds,
+                            child_tiles,
+                        );
+                        // Assuming `result` can be turned into `dyn Any + Send`. You may need to adjust types or wrap further.
+                        Some(Box::new(result) as Box<dyn Any + Send>)
+                    },
+                );
+                let task_id = *chunk_ix as usize;
+                let task = WorkerPoolMessage::WorkerTask(Task {
+                    priority: self.layer_id,
+                    task_id: Some(task_id),
+                    task_info: Some(self.layer_id),
+                    job,
+                });
+                tasks.push(task);
+                // chunk_generator.generate_chunk_from_parent(chunk_bounds, self, parent_tiles);
+            }
+        }
+        Some(tasks)
+    }
+
     pub(crate) fn ensure_chunk_is_complete(&mut self, tx: isize, ty: isize) {
         if self.layer_id == 0 {
             // nothing to do.
@@ -430,7 +538,7 @@ impl ChunkLayer {
         for (_chunk_ix, (cx, cy)) in &chunk_ixs {
             // we know the chunk exists, because we ensured it earlier.
             let chunk_bounds_opt = {
-                let mut chunks = self.chunks.borrow_mut();
+                let mut chunks = self.chunks.try_lock().expect("Can't lock chunks");
                 let chunk = chunks.get(*cx, *cy).expect("Chunk should be here");
                 if chunk.is_complete() {
                     None
@@ -441,7 +549,7 @@ impl ChunkLayer {
             if let Some(chunk_bounds) = chunk_bounds_opt {
                 // the chunk has unset tiles, so let's complete it.
                 // let's get the parent tiles that cover this chunk
-                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
+                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds, true);
 
                 // generate the chunk.
                 chunk_generator.generate_chunk_from_parent(chunk_bounds, self, parent_tiles);
@@ -449,68 +557,77 @@ impl ChunkLayer {
         }
     }
 
-
-
     fn get_parent_tiles_for_expansion(
         &mut self,
         chunk_bounds: &Bounds,
+        ensure_exists: bool,
     ) -> IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>> {
         // let's get the parent layer tiles that we are going to need...
         // a bit ugly, but it will work
         let parent_tiles = {
             let child_capacity = chunk_bounds.get_tile_count(true);
             // nohash_hasher::BuildNoHashHasher<(isize, isize)>
-            let mut expansion_tiles = IndexMap::with_capacity_and_hasher(child_capacity, BuildHasherDefault::default());
+            let mut expansion_tiles =
+                IndexMap::with_capacity_and_hasher(child_capacity, BuildHasherDefault::default());
 
             // get the parent layer.
             // it has to be mutable, because we are accessing chunks in an lru cache which
             // can change based on retrieval.
-            let mut parent_layer_ref = self.parent_layer.borrow_mut();
-            let parent_layer: &mut ChunkLayer = parent_layer_ref
-                .as_mut()
-                .expect("No parent layer for this layer");
+            // let mut parent_layer_ref = self.parent_layer.borrow_mut();
+            if let Ok(mut layer_lock) = self.parent_layer.try_write() {
+                let mut parent_layer = layer_lock.as_mut().unwrap();
 
-            let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
-                chunk_bounds.get_bound_coords(true);
+                let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
+                    chunk_bounds.get_bound_coords(true);
 
-            let parent_capacity = parent_layer.tile_bounds.get_tile_count(true);
-            let mut parent_tiles_cache: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>> = IndexMap::with_capacity_and_hasher(parent_capacity, BuildHasherDefault::default());
+                let parent_capacity = parent_layer.tile_bounds.get_tile_count(true);
+                let mut parent_tiles_cache: IndexMap<
+                    (isize, isize),
+                    TIndex,
+                    BuildHasherDefault<FxHasher>,
+                > = IndexMap::with_capacity_and_hasher(
+                    parent_capacity,
+                    BuildHasherDefault::default(),
+                );
 
-            let padding = self.tile_bounds.padding as isize;
+                let padding = self.tile_bounds.padding as isize;
 
-            for this_layer_y in this_layer_y0 - padding..this_layer_y1 + padding {
-                for this_layer_x in this_layer_x0 - padding..this_layer_x1 + padding {
-                    // the parent coordinates in the parent layer
-                    let (parent_x, parent_y) = parent_layer
-                        .convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
-                    // check to see if we cached it.
-                    if let Some(tile_value) = parent_tiles_cache.get(&(parent_x, parent_y)) {
-                        // short circuit if we did
-                        expansion_tiles.insert((this_layer_x, this_layer_y), *tile_value);
-                        continue;
-                    }
-
-                    // get the parent tile
-                    let tile_value = {
-                        match parent_layer.get_at_or_default(parent_x, parent_y) {
-                            None => {
-                                // the source layer tile is unset
-                                // we need to call this method recursively
-                                // for the parent layer at the parent coordinates
-                                parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
-                                // get the parent tile again. It should be set this time.
-
-                                parent_layer
-                                    .get_at(parent_x, parent_y)
-                                    .expect("Parent chunk tile is not set.")
-                            }
-                            Some(t) => t,
+                for this_layer_y in this_layer_y0 - padding..this_layer_y1 + padding {
+                    for this_layer_x in this_layer_x0 - padding..this_layer_x1 + padding {
+                        // the parent coordinates in the parent layer
+                        let (parent_x, parent_y) = parent_layer
+                            .convert_to_parent_layer_tile_coordinates(this_layer_x, this_layer_y);
+                        // check to see if we cached it.
+                        if let Some(tile_value) = parent_tiles_cache.get(&(parent_x, parent_y)) {
+                            // short circuit if we did
+                            expansion_tiles.insert((this_layer_x, this_layer_y), *tile_value);
+                            continue;
                         }
-                    };
-                    // save in expansion tiles
-                    expansion_tiles.insert((this_layer_x, this_layer_y), tile_value);
-                    // put in cache.
-                    parent_tiles_cache.insert((parent_x, parent_y), tile_value);
+
+                        // get the parent tile
+                        let tile_value = {
+                            match parent_layer.get_at_or_default(parent_x, parent_y) {
+                                None => {
+                                    // the source layer tile is unset
+                                    // we need to call this method recursively
+                                    // for the parent layer at the parent coordinates
+                                    if ensure_exists {
+                                        parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
+                                    }
+                                    // get the parent tile again. It should be set this time.
+
+                                    parent_layer
+                                        .get_at(parent_x, parent_y)
+                                        .expect("Parent chunk tile is not set.")
+                                }
+                                Some(t) => t,
+                            }
+                        };
+                        // save in expansion tiles
+                        expansion_tiles.insert((this_layer_x, this_layer_y), tile_value);
+                        // put in cache.
+                        parent_tiles_cache.insert((parent_x, parent_y), tile_value);
+                    }
                 }
             }
             expansion_tiles

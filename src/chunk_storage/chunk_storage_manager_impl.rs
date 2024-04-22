@@ -174,7 +174,7 @@ impl ChunkStorageManager {
     fn load_chunk_from_storage(&self, cx: isize, cy: isize) -> Option<Chunk> {
         // log::info!("ChunkStorageManager:get([{chunk_cache_key:?}]) : NOT FOUND in mem-cache");
         let chunk_guid_bytes = create_seed_from_guid_x_y(self.owning_layer_guid, cx, cy);
-        let chunk_unique_id = get_chunk_unique_id(chunk_guid_bytes, cx, cy, true);
+        let chunk_unique_id = get_chunk_unique_id(&chunk_guid_bytes, cx, cy, true);
         let chunk_cache_key = (cx, cy);
         // short circuit - don't load chunk if we know it's not in the cache
         if !self.stored_chunk_ids.contains(&chunk_unique_id) {

@@ -23,22 +23,22 @@ root:
     - stdout
 
 loggers:
-#  hiivelabs_chunk_lib:
-#    level: debug
-#    appenders:
-#      - stdout
-#    additive: false
-
-  hiivelabs_rand_utils_lib:
+  hiivelabs_chunk_lib:
     level: debug
     appenders:
       - stdout
     additive: false
 
-#  hiivelabs_chunk_lib::chunk_storage:
-#    level: off
+#  hiivelabs_rand_utils_lib:
+#    level: debug
+#    appenders:
+#      - stdout
 #    additive: false
-#
+
+  hiivelabs_chunk_lib::chunk_storage:
+    level: off
+    additive: false
+
 #  hiivelabs_storage_lib:
 #    level: off
 #    additive: false

@@ -42,20 +42,20 @@ fn get_friendly_type_name<T>() -> String {
     let t_name = std::any::type_name::<T>();
     t_name.split("::").last().unwrap_or(t_name).to_string()
 }
-pub(crate) fn get_chunk_manager_unique_id<T>(guid_bytes: [u8; 16], mangle: bool) -> String {
+pub(crate) fn get_chunk_manager_unique_id<T>(guid_bytes: &[u8; 16], mangle: bool) -> String {
     let t_name = get_friendly_type_name::<T>();
     let unique_id = get_prefixed_unique_id("cm", guid_bytes, 0, 0, mangle, Some(t_name));
     // log::info!("ChunkManager UniqueId: [{}:({})] -> [{unique_id}]", Uuid::from_bytes(guid_bytes), get_friendly_type_name::<T>());
     unique_id
 }
 
-pub(crate) fn get_chunk_layer_unique_id(guid_bytes: [u8; 16], mangle: bool) -> String {
+pub(crate) fn get_chunk_layer_unique_id(guid_bytes: &[u8; 16], mangle: bool) -> String {
     let unique_id = get_prefixed_unique_id("cl", guid_bytes, 0, 0, mangle, None);
     // log::info!("ChunkLayer UniqueId: [{}] -> [{unique_id}]", Uuid::from_bytes(guid_bytes));
     unique_id
 }
 pub(crate) fn get_chunk_unique_id(
-    guid_bytes: [u8; 16],
+    guid_bytes: &[u8; 16],
     cx: isize,
     cy: isize,
     mangle: bool,
@@ -67,13 +67,13 @@ pub(crate) fn get_chunk_unique_id(
 
 fn get_prefixed_unique_id(
     prefix: &str,
-    guid_bytes: [u8; 16],
+    guid_bytes: &[u8; 16],
     x: isize,
     y: isize,
     mangle: bool,
     extra_data: Option<String>,
 ) -> String {
-    let guid = Uuid::from_bytes(guid_bytes);
+    let guid = Uuid::from_bytes(*guid_bytes);
     let mut id = {
         match extra_data {
             None => format!("{guid}_{x:016X}_{y:016X}"),
