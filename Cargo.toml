@@ -25,3 +25,8 @@ num_cpus = "1.16.0"
 rustc-hash = "1.1.0"
 #dashmap = { Version="5.5.3", features = ["inline"] }
 
+
+[features]
+# multithreaded_chunk_generation = []
+# default=["multithreaded_chunk_generation"]
+

@@ -3,10 +3,8 @@ use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_layer::{ChunkLayer, TIndex};
 use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
 use indexmap::IndexMap;
-use rand::prelude::StdRng;
-use rand_core::{RngCore, SeedableRng};
 use rustc_hash::FxHasher;
-use std::hash::BuildHasherDefault;
+use std::hash::{BuildHasherDefault, Hasher};
 
 pub(crate) struct ChunkSeededInterpolator;
 
@@ -46,8 +44,6 @@ impl ChunkGenerator for ChunkSeededInterpolator {
             child_tiles,
         );
 
-        // TODO! Add tests to verify that map is identical no matter which
-        // TODO! order it is filled. tl -> br, br -> tl
         assert!(child_tiles.len() <= s);
 
         // TODO - get thread work result.
@@ -63,14 +59,13 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         manager_guid_bytes: [u8; 16],
         child_layer_guid_bytes: [u8; 16],
         child_chunk_bounds: Bounds,
-        child_tiles: IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+        mut child_tiles: IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
     ) -> IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>> {
         // get the layer relative tile coordinates for the area that needs
         // to be set in this chunk
         let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
             child_chunk_bounds.get_bound_coords(true);
 
-        let mut child_tiles = child_tiles;
         // first pass - just double the chunks
         for this_layer_y in this_layer_y0..this_layer_y1 {
             for this_layer_x in this_layer_x0..this_layer_x1 {
@@ -79,7 +74,6 @@ impl ChunkGenerator for ChunkSeededInterpolator {
                 // check existing tile
                 let tile_value = child_tiles[&(this_layer_x, this_layer_y)].unwrap_or(parent_tile);
                 // set the tile vale in the chunk from the parent tile value
-                // let ix = (this_layer_x + 1) + (this_layer_y + 1) * w;
                 child_tiles.insert((this_layer_x, this_layer_y), Some(tile_value));
             }
         }
@@ -97,27 +91,20 @@ impl ChunkGenerator for ChunkSeededInterpolator {
             result[16..].copy_from_slice(&seed2);
             result
         };
-
-        // TODO - push this work into worker thread
-        let mut rng = StdRng::from_seed(seed);
+        let mut hasher = FxHasher::default();
 
         // second pass - copy some chunks from their neighbors
         for this_layer_y in (this_layer_y0 - 1..this_layer_y1 + 1).step_by(2) {
             for this_layer_x in this_layer_x0 - 1..this_layer_x1 + 1
             /*.step_by(2)*/
             {
-                let dx = (rng.next_u32() % 3) as isize - 1;
-                let dy = (rng.next_u32() % 3) as isize - 1;
-                // get the offset tile
-                if let Some(offset_tile) = child_tiles.get(&(this_layer_x + dx, this_layer_y + dy))
-                {
-                    match offset_tile {
-                        None => {}
-                        Some(tile_value) => {
-                            child_tiles.insert((this_layer_x, this_layer_y), Some(*tile_value));
-                        }
-                    }
-                }
+                Self::choose_child_tile(
+                    &mut child_tiles,
+                    &mut hasher,
+                    &seed,
+                    this_layer_y,
+                    this_layer_x,
+                );
             }
         }
 
@@ -126,20 +113,39 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         /*.step_by(2)*/
         {
             for this_layer_x in (this_layer_x0 - 1..this_layer_x1 + 1).step_by(2) {
-                let dx = (rng.next_u32() % 3) as isize - 1;
-                let dy = (rng.next_u32() % 3) as isize - 1;
-                // get the offset tile
-                if let Some(offset_tile) = child_tiles.get(&(this_layer_x + dx, this_layer_y + dy))
-                {
-                    match offset_tile {
-                        None => {}
-                        Some(tile_value) => {
-                            child_tiles.insert((this_layer_x, this_layer_y), Some(*tile_value));
-                        }
-                    }
-                }
+                Self::choose_child_tile(
+                    &mut child_tiles,
+                    &mut hasher,
+                    &seed,
+                    this_layer_y,
+                    this_layer_x,
+                );
             }
         }
         child_tiles
+    }
+}
+
+impl ChunkSeededInterpolator {
+    #[inline(always)]
+    fn choose_child_tile(
+        child_tiles: &mut IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+        hasher: &mut FxHasher,
+        seed: &[u8; 32],
+        this_layer_y: isize,
+        this_layer_x: isize,
+    ) {
+        let dx = Self::get_coord_offset(hasher, seed, this_layer_x);
+        let dy = Self::get_coord_offset(hasher, seed, this_layer_y);
+        if let Some(Some(tile_value)) = child_tiles.get(&(this_layer_x + dx, this_layer_y + dy)) {
+            child_tiles.insert((this_layer_x, this_layer_y), Some(*tile_value));
+        }
+    }
+
+    #[inline(always)]
+    fn get_coord_offset(hasher: &mut FxHasher, seed: &[u8; 32], coord: isize) -> isize {
+        hasher.write(seed);
+        hasher.write_isize(coord);
+        (hasher.finish() % 3) as isize - 1
     }
 }

@@ -3,8 +3,7 @@ use rustc_hash::FxHasher;
 use std::any::Any;
 use std::hash::BuildHasherDefault;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
-use hecs::spin::Mutex;
+use std::sync::{Arc, RwLock, Mutex};
 
 use hiivelabs_rand_utils_lib::prelude::WorkerPoolMessage::WorkerTask;
 use hiivelabs_rand_utils_lib::prelude::{Task, WorkerPoolMessage};
@@ -221,6 +220,7 @@ impl ChunkLayer {
             }
         }
 
+        chunk_indices.sort();
         chunk_indices
     }
 
@@ -396,6 +396,7 @@ impl ChunkLayer {
         Some(chunk_ix)
     }
 
+    #[inline(always)]
     pub(crate) fn convert_to_parent_layer_tile_coordinates(
         &self,
         tx: isize,
@@ -407,8 +408,7 @@ impl ChunkLayer {
         (tx / 2, ty / 2)
     }
 
-
-    #[cfg(multithreaded_chunk_generation)]
+    #[cfg(feature = "multithreaded_chunk_generation")]
     pub(crate) fn get_ensure_chunk_is_complete_work(
         &mut self,
         tx: isize,
@@ -449,7 +449,7 @@ impl ChunkLayer {
             if let Some(chunk_bounds) = chunk_bounds_opt {
                 // the chunk has unset tiles, so let's complete it.
                 // let's get the parent tiles that cover this chunk
-                // let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
+                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
 
                 // get the child tiles that we are going to expand into
                 let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
@@ -457,9 +457,6 @@ impl ChunkLayer {
                 let w = 2 + this_layer_x1 - this_layer_x0;
                 let h = 2 + this_layer_y1 - this_layer_y0;
                 let s = (w * h) as usize;
-
-                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds, false);
-
 
                 let child_tiles = {
                     let mut child_tiles: IndexMap<
@@ -549,7 +546,7 @@ impl ChunkLayer {
             if let Some(chunk_bounds) = chunk_bounds_opt {
                 // the chunk has unset tiles, so let's complete it.
                 // let's get the parent tiles that cover this chunk
-                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds, true);
+                let parent_tiles = self.get_parent_tiles_for_expansion(&chunk_bounds);
 
                 // generate the chunk.
                 chunk_generator.generate_chunk_from_parent(chunk_bounds, self, parent_tiles);
@@ -560,7 +557,6 @@ impl ChunkLayer {
     fn get_parent_tiles_for_expansion(
         &mut self,
         chunk_bounds: &Bounds,
-        ensure_exists: bool,
     ) -> IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>> {
         // let's get the parent layer tiles that we are going to need...
         // a bit ugly, but it will work
@@ -611,9 +607,11 @@ impl ChunkLayer {
                                     // the source layer tile is unset
                                     // we need to call this method recursively
                                     // for the parent layer at the parent coordinates
-                                    if ensure_exists {
-                                        parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
-                                    }
+
+                                    // we don't do this for multithreading
+                                    #[cfg(not(feature = "multithreaded_chunk_generation"))]
+                                    parent_layer.ensure_chunk_is_complete(parent_x, parent_y);
+
                                     // get the parent tile again. It should be set this time.
 
                                     parent_layer

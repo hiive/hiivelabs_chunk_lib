@@ -18,6 +18,6 @@ pub(crate) trait ChunkGenerator {
         manager_guid_bytes: [u8; 16],
         child_layer_guid_bytes: [u8; 16],
         child_chunk_bounds: Bounds,
-        child_tiles: IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+        /* mut */ child_tiles: IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
     ) -> IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>;
 }

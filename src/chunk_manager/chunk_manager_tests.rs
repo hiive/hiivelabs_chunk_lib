@@ -277,13 +277,14 @@ fn test_can_get_from_non_zero_layer() {
     let test_val = cm.get_at(c, c, 3).unwrap();
     log::info!("test_val: {test_val:02X}");
 
+    /*
     log::info!("[INTERIM]");
     cm.log_all_layer_index_diagnostics(false);
     for l in 0..5 {
         let bounds = cm.get_bounds_for_layer(l, true);
         log::info!("Layer {l} bounds: {bounds:?}");
     }
-
+    */
     let padded_bounds_3 = cm
         .get_bounds_for_layer(3, true)
         .expect("Layer bounds error");
@@ -301,9 +302,13 @@ fn test_can_get_from_non_zero_layer() {
         cm.width as isize * 8,
         cm.height as isize * 8
     );
+
+    let range_y = (padded_y_max..padded_y_min).rev().into_iter();
+
     // return;
-    for y in padded_y_min..padded_y_max {
-        for x in padded_x_min..padded_x_max {
+    for y in range_y {
+        let range_x = (padded_x_min..padded_x_max).rev().into_iter();
+        for x in range_x {
             let v3 = cm.get_at(x, y, 3).unwrap();
             let (x0, y0) = (x / 8, y / 8);
             let v0 = cm.get_at(x0, y0, 0).unwrap();

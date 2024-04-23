@@ -1,4 +1,3 @@
-
 use hiivelabs_storage_lib::prelude::UniqueId;
 use indexmap::{IndexMap, IndexSet};
 use log::log;
@@ -16,20 +15,18 @@ use crate::chunk_seed_utils::chunk_seed_utils_impl::{
 
 use crate::tilemap_datasource::TileMapDataSource;
 
-#[cfg(multithreaded_chunk_generation)]
+#[cfg(feature = "multithreaded_chunk_generation")]
 use hiivelabs_rand_utils_lib::prelude::{
     create_worker_pool, shutdown_worker_pool, submit_message_to_worker_pool, WorkerPoolMessage,
 };
-#[cfg(multithreaded_chunk_generation)]
+#[cfg(feature = "multithreaded_chunk_generation")]
 use std::any::Any;
-#[cfg(multithreaded_chunk_generation)]
+#[cfg(feature = "multithreaded_chunk_generation")]
 use std::sync::mpsc::{self, Receiver, RecvError};
-#[cfg(multithreaded_chunk_generation)]
+#[cfg(feature = "multithreaded_chunk_generation")]
 use std::thread;
-#[cfg(multithreaded_chunk_generation)]
+#[cfg(feature = "multithreaded_chunk_generation")]
 use std::thread::JoinHandle;
-
-
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
@@ -42,15 +39,15 @@ pub struct ChunkManager<T> {
     pub(crate) owned_values: Vec<T>,
     pub(crate) out_of_bounds_value_index: TIndex,
     pub(crate) manager_guid_bytes: [u8; 16],
-    #[cfg(multithreaded_chunk_generation)]
+    #[cfg(feature = "multithreaded_chunk_generation")]
     thread_join_handle: Option<JoinHandle<()>>,
-    #[cfg(multithreaded_chunk_generation)]
+    #[cfg(feature = "multithreaded_chunk_generation")]
     worker_pool_name: String,
-    #[cfg(multithreaded_chunk_generation)]
+    #[cfg(feature = "multithreaded_chunk_generation")]
     job_complete_rx: Receiver<usize>,
 }
 
-#[cfg(multithreaded_chunk_generation)]
+#[cfg(feature = "multithreaded_chunk_generation")]
 impl<T> Drop for ChunkManager<T> {
     fn drop(&mut self) {
         shutdown_worker_pool(&self.worker_pool_name);
@@ -159,7 +156,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             chunk_padding_in_tiles,
         );
         //#[cfg(multithreaded_chunk_generation)]
-        #[cfg(multithreaded_chunk_generation)]
+        #[cfg(feature = "multithreaded_chunk_generation")]
         let (thread_join_handle, worker_pool_name, job_complete_rx) =
             ChunkManager::<T>::setup_chunk_creation_threads(&manager_guid_bytes, layers.clone());
 
@@ -170,26 +167,26 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             owned_values,
             out_of_bounds_value_index,
             manager_guid_bytes,
-            #[cfg(multithreaded_chunk_generation)]
+            #[cfg(feature = "multithreaded_chunk_generation")]
             thread_join_handle,
-            #[cfg(multithreaded_chunk_generation)]
+            #[cfg(feature = "multithreaded_chunk_generation")]
             worker_pool_name,
-            #[cfg(multithreaded_chunk_generation)]
+            #[cfg(feature = "multithreaded_chunk_generation")]
             job_complete_rx,
         }
     }
 
-    #[cfg(multithreaded_chunk_generation)]
+    #[cfg(feature = "multithreaded_chunk_generation")]
     fn setup_chunk_creation_threads(
         manager_guid_bytes: &[u8; 16],
         layers: Vec<Arc<RwLock<Option<ChunkLayer>>>>,
     ) -> (Option<JoinHandle<()>>, String, Receiver<usize>) {
-
         // initialize the worker thread pool
         let num_cores = usize::min(num_cpus::get(), 6);
         let pool_name = get_chunk_manager_unique_id::<T>(manager_guid_bytes, true);
 
-        let (job_tx, job_rx) = mpsc::channel::<(Option<usize>, Option<usize>, Option<Box<dyn Any + Send>>)>();
+        let (job_tx, job_rx) =
+            mpsc::channel::<(Option<usize>, Option<usize>, Option<Box<dyn Any + Send>>)>();
         let (job_complete_tx, job_complete_rx) = mpsc::channel::<usize>();
         let thread_handle = thread::spawn(move || {
             let mut thread_count_remaining = num_cores;
@@ -241,7 +238,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         create_worker_pool(&pool_name, num_cores, Some(job_tx));
         (Some(thread_handle), pool_name, job_complete_rx)
-
     }
 
     /// Returns the bounds (including padding) for the specified layer.
@@ -364,17 +360,16 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
 
         // iterate through the layers, from 1 to z, ensuring that the specified layer chunk
         // is complete, so it can be used to calculate the next layer corresponding chunk.
-        #[cfg(not(multithreaded_chunk_generation))] // this is the non-multithreaded one
+        #[cfg(not(feature = "multithreaded_chunk_generation"))] // this is the non-multithreaded one
         for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
             let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
             if let Ok(mut layer_lock) = layer_rc.try_write() {
                 let mut layer = layer_lock.as_mut().unwrap();
                 layer.ensure_chunk_is_complete(*tx, *ty);
             }
-
         }
 
-        #[cfg(multithreaded_chunk_generation)] // TODO - this is the multithreaded one
+        #[cfg(feature = "multithreaded_chunk_generation")]
         {
             for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
                 let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
@@ -417,7 +412,6 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                     }
                 }
             }
-
         }
     }
 
@@ -648,7 +642,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             }
         }
         // sanity check
-        let mut layer0_chunks = layer0.chunks.try_lock().expect("Can't lock chunks");;
+        let mut layer0_chunks = layer0.chunks.try_lock().expect("Can't lock chunks");
         let layer0_chunk = layer0_chunks.get(0, 0).expect("No parent chunk found.");
         let incomplete_count = layer0_chunk.get_unset_tile_count();
         let total_count = width * height;
