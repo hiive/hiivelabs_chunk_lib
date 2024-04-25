@@ -3,7 +3,7 @@ use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 use std::fs;
 use std::str::FromStr;
 use uuid::Uuid;
-use hiivelabs_rand_utils_lib::prelude::TIndex;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 #[test]
 fn test_is_chunk_border_coord() {
@@ -270,8 +270,8 @@ fn test_set_and_get_top_layer() {
     );
 
     for i in -1_isize..5 {
-        let x = i;
-        let y = layer.tile_bounds.height as isize - (i + 1);
+        let x = i as IDim;
+        let y = (layer.tile_bounds.height as isize - (i + 1)) as IDim;
         let value: TIndex = (x + y) as TIndex;
 
         log::trace!("{x}, {y}");
@@ -374,8 +374,8 @@ fn store_layer_chunk() {
     );
 
     let mut count = 0_isize as TIndex;
-    for y in 0..layer.tile_bounds.height as isize {
-        for x in 0..layer.tile_bounds.width as isize {
+    for y in 0..layer.tile_bounds.height as IDim {
+        for x in 0..layer.tile_bounds.width as IDim {
             let _ = layer.set_at(x, y, count);
             count += 1;
         }

@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::prelude::IDim;
 
 pub(crate) struct ChunkStorageThreadHandler {
     owning_manager_guid: Uuid,
@@ -67,8 +68,8 @@ impl ChunkStorageThreadHandler {
                 match storage_message {
                     ChunkStorageMessage::ToStore(mut chunk) => {
                         let chunk_cache_key = (
-                            chunk.bounds.x / chunk.bounds.width as isize,
-                            chunk.bounds.y / chunk.bounds.height as isize,
+                            chunk.bounds.x / chunk.bounds.width as IDim,
+                            chunk.bounds.y / chunk.bounds.height as IDim,
                         );
                         let chunk_unique_id = chunk.get_unique_id(true);
                         let mut attempts = 0;
@@ -122,8 +123,8 @@ impl ChunkStorageThreadHandler {
         // Implement disk write operations
         let chunk_unique_id = chunk.get_unique_id(true);
         let chunk_coords = (
-            chunk.bounds.x / chunk.bounds.width as isize,
-            chunk.bounds.y / chunk.bounds.height as isize,
+            chunk.bounds.x / chunk.bounds.width as IDim,
+            chunk.bounds.y / chunk.bounds.height as IDim,
         );
         // we're saving it, so let's clear the dirty flag.
         chunk.is_dirty = false;

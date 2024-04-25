@@ -31,16 +31,16 @@ use std::sync::mpsc::{self, Receiver, RecvError};
 use std::thread;
 #[cfg(feature = "multithreaded_chunk_generation")]
 use std::thread::JoinHandle;
-use hiivelabs_rand_utils_lib::prelude::TIndex;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
 pub struct ChunkManager<T> {
     pub(crate) layers: Vec<Arc<RwLock<Option<ChunkLayer>>>>,
     /// The width in tiles of the top level map data.
-    pub width: usize,
+    pub width: UDim,
     /// The height in tiles of the top level map data.
-    pub height: usize,
+    pub height: UDim,
     pub(crate) owned_values: Vec<T>,
     pub(crate) out_of_bounds_value_index: TIndex,
     pub(crate) manager_guid_bytes: [u8; 16],
@@ -96,11 +96,11 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     /// returns: [`ChunkManager<T>`] initialized with the `source` data.
     pub fn new(
         source: Box<dyn TileMapDataSource<T>>,
-        layer_count: usize,
+        layer_count: UDim,
         layer_chunk_cache_size: u32,
-        chunk_width_in_tiles: usize,
-        chunk_height_in_tiles: usize,
-        chunk_padding_in_tiles: usize,
+        chunk_width_in_tiles: UDim,
+        chunk_height_in_tiles: UDim,
+        chunk_padding_in_tiles: UDim,
         guid: Option<Uuid>,
     ) -> Self {
         let width = source.width();
@@ -143,8 +143,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // width * height * layer_count instances of T.
 
         // let's start out with that, and reevaluate as necessary.
-        let owned_values_capacity = width * height * layer_count;
-        let mut owned_values = Vec::<T>::with_capacity(owned_values_capacity);
+        let mut owned_values = Vec::<T>::with_capacity((width * height * layer_count) as usize);
 
         // #[cfg(debug_assertions)]
         log::info!("reserved space: {}", width * height * layer_count);
@@ -290,7 +289,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         &self,
         z: usize,
         include_padding: bool,
-    ) -> Result<(isize, isize, isize, isize), &str> {
+    ) -> Result<(IDim, IDim, IDim, IDim), &str> {
         let some_layer = self.layers.get(z);
         match some_layer {
             Some(layer_rc) => {
@@ -335,8 +334,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// returns: [`Result`], structured as  `Ok(&T)` if the specified coordinates are in
     /// bounds, else `Err(&str)`.
-    pub fn get_at(&self, x: isize, y: isize, z: usize) -> Result<&T, &str> {
-        let some_layer = self.layers.get(z);
+    pub fn get_at(&self, x: IDim, y: IDim, z: UDim) -> Result<&T, &str> {
+        let some_layer = self.layers.get(z as usize);
 
         match some_layer {
             Some(layer_rc) => {
@@ -354,8 +353,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                             // return the oob value from the top layer.
                             if x < 0
                                 || y < 0
-                                || x >= layer.tile_bounds.width as isize
-                                || y >= layer.tile_bounds.width as isize
+                                || x >= layer.tile_bounds.width as IDim
+                                || y >= layer.tile_bounds.width as IDim
                             {
                                 return Ok(&self.owned_values[self.out_of_bounds_value_index]);
                             }
@@ -395,7 +394,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
     ///
     /// returns: ()
     ///
-    pub(crate) fn ensure_layer_chunks_are_complete(&self, x: isize, y: isize, z: usize) {
+    pub(crate) fn ensure_layer_chunks_are_complete(&self, x: IDim, y: IDim, z: UDim) {
         if z == 0 {
             // nothing to do - the top layer is always complete.
             return;
@@ -403,10 +402,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // let's build a map of coordinates
         // for the corresponding tile coordinates in each layer 0 <= z
         // layer z - 1's coordinates are half of layer z.
-        let coord_map: Vec<(isize, isize)> = (0..=z)
+        let coord_map: Vec<(IDim, IDim)> = (0..=z)
             .map(|l| {
                 let ld = (z - l) as u32;
-                let f = 2_isize.pow(ld);
+                let f = 2_isize.pow(ld) as IDim;
                 (x / f, y / f)
             })
             .collect();
@@ -414,7 +413,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // iterate through the layers, from 1 to z, ensuring that the specified layer chunk
         // is complete, so it can be used to calculate the next layer corresponding chunk.
         #[cfg(not(feature = "multithreaded_chunk_generation"))] // this is the non-multithreaded one
-        for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
+        for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z as usize + 1).skip(1) {
             let mut attempts = 0;
             loop {
                 let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
@@ -515,24 +514,24 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         manager_guid_bytes: [u8; 16],
         owned_values: &mut Vec<T>,
         mut source: Box<dyn TileMapDataSource<T>>,
-        layer_count: usize,
+        layer_count: UDim,
         layer_chunk_cache_size: u32,
-        chunk_width_in_tiles: usize,
-        chunk_height_in_tiles: usize,
-        chunk_padding_in_tiles: usize,
+        chunk_width_in_tiles: UDim,
+        chunk_height_in_tiles: UDim,
+        chunk_padding_in_tiles: UDim,
     ) -> (Vec<Arc<RwLock<Option<ChunkLayer>>>>, TIndex) {
         let width_in_chunks = source.width() / chunk_width_in_tiles;
         let height_in_chunks = source.height() / chunk_height_in_tiles;
         let out_of_bounds_value_index = source.get_default_out_of_bounds_value_index() as TIndex;
 
         // create the layers
-        let mut layers = Vec::with_capacity(layer_count);
+        let mut layers = Vec::with_capacity(layer_count as usize);
         let mut prev_layer = Arc::new(RwLock::new(None));
-        for layer_id in 0..layer_count {
+        for layer_id in 0..layer_count as UDim {
             // each layer is double the width/height of the previous one.
             let layer_guid_bytes =
                 create_seed_from_guid_bytes_x_y(&manager_guid_bytes, layer_id as isize, 0);
-            let f = 2_usize.pow(layer_id as u32);
+            let f = 2_usize.pow(layer_id as u32) as UDim;
 
             let (
                 layer_chunk_width,
@@ -691,7 +690,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             for y in y_min..y_max {
                 let mut row: String = String::new();
                 for x in x_min..x_max {
-                    let result = self.get_at(x, y, layer_id);
+                    let result = self.get_at(x, y, layer_id as UDim);
                     match result {
                         Err(_) => {
                             row.push_str("-- ");
@@ -729,12 +728,12 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // let mut ix_map = HashMap::with_capacity(width * height);
         // let mut ix_map = HashMap::<usize, (isize, isize), nohash_hasher::BuildNoHashHasher<usize>>::with_capacity_and_hasher(width * height, nohash_hasher::BuildNoHashHasher::default());
         let mut ix_map =
-            FxHashMap::with_capacity_and_hasher(width * height, BuildHasherDefault::default());
+            FxHashMap::with_capacity_and_hasher((width * height) as usize, BuildHasherDefault::default());
         for y in 0..height {
             for x in 0..width {
                 if let Some(ix) = source.get_index_of(x, y) {
                     // we have the index into the source data of coordinates (x, y)
-                    ix_map.insert(ix, (x as isize, y as isize));
+                    ix_map.insert(ix, (x as IDim, y as IDim));
                 }
             }
         }

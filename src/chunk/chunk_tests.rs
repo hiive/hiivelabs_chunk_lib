@@ -78,9 +78,9 @@ fn build_complete_chunk(width: UDim, height: UDim, padding: UDim, is_random: boo
     let size = chunk.chunk_width * chunk.chunk_height;
     let values_to_use: Vec<TIndex> = {
         if is_random {
-            generate_random_vector(size)
+            generate_random_vector(size as usize)
         } else {
-            (0_usize..(chunk.chunk_width * chunk.chunk_height)).map(|c| c as TIndex).collect()
+            (0..(chunk.chunk_width * chunk.chunk_height)).map(|c| c as TIndex).collect()
         }
     };
     let mut ix = 0;

@@ -26,8 +26,8 @@ impl Chunk {
         let chunk_height = height + 2 * padding;
         let tiles = {
             let vec_size = chunk_width * chunk_height;
-            let mut vec = Vec::with_capacity(vec_size);
-            vec.resize_with(vec_size, Default::default);
+            let mut vec = Vec::with_capacity(vec_size as usize);
+            vec.resize_with(vec_size as usize, Default::default);
             vec
         };
 
@@ -52,7 +52,7 @@ impl Chunk {
     pub(crate) fn get_at(&self, tx: IDim, ty: IDim) -> Option<TIndex> {
         let result = self.bounds.get_index_for_coords(tx, ty, true);
         match result {
-            Ok((ix, _, _)) => self.get_by_index(ix),
+            Ok((ix, _, _)) => self.get_by_index(ix as isize),
             Err(msg) => {
                 panic!("{msg}")
             }
@@ -68,7 +68,7 @@ impl Chunk {
         if let Ok((ix, _, _)) = self.bounds.get_index_for_coords(tx, ty, false) {
             if self.bounds.is_index_in_bounds(ix) {
                 // !("Chunk::get_at_or_default: ({tx}, {ty}) Got default value: {default_value:?}");
-                return self.get_by_index(ix);
+                return self.get_by_index(ix as isize);
             }
         }
         default_value
@@ -79,7 +79,7 @@ impl Chunk {
         if ix >= self.tiles.len() as isize {
             None
         } else {
-            self.tiles[ix as UDim]
+            self.tiles[ix as usize]
         }
     }
 

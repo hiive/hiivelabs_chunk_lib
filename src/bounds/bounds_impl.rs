@@ -96,7 +96,7 @@ impl Bounds {
 
         let padded_width = self.width + 2 * padding;
         let padded_height = self.height + 2 * padding;
-        padded_width * padded_height
+        (padded_width * padded_height) as usize
     }
 
     pub(crate) fn is_coords_in_bounds(&self, tx: IDim, ty: IDim, with_padding: bool) -> bool {

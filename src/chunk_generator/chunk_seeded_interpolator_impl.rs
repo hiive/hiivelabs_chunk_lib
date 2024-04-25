@@ -90,8 +90,8 @@ impl ChunkGenerator for ChunkSeededInterpolator {
             let mut result = [0u8; 32];
             let seed2 = create_seed_from_guid_bytes_x_y(
                 &child_layer_guid_bytes,
-                this_layer_x0,
-                this_layer_y0,
+                this_layer_x0 as isize,
+                this_layer_y0 as isize,
             );
             let seed1 = manager_guid_bytes;
             result[..16].copy_from_slice(&seed1);

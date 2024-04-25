@@ -259,8 +259,8 @@ impl ChunkLayer {
                     // create a new chunk
                     let chunk_guid = Uuid::from_bytes(create_seed_from_guid_bytes_x_y(
                         &self.layer_guid_bytes,
-                        *cx,
-                        *cy,
+                        *cx as isize,
+                        *cy as isize,
                     ));
                     let (c_tx, c_ty) = self.chunk_coords_to_tile_coords(*cx, *cy);
                     let new_chunk = Chunk::new(

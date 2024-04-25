@@ -9,6 +9,7 @@ use std::fmt::Formatter;
 use std::time::Instant;
 use std::{fmt, fs};
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 
 /// A wrapper around `u8` that implements `Debug` to display the value in hexadecimal.
 #[derive(Clone)]
@@ -44,24 +45,24 @@ impl fmt::UpperHex for HexU8 {
 #[derive(Clone)]
 struct TestMap {
     pub(crate) data: Vec<HexU8>,
-    width: usize,
-    height: usize,
-    oob_index: usize,
+    width: UDim,
+    height: UDim,
+    oob_index: TIndex,
 }
 
 impl TileMapDataSource<HexU8> for TestMap {
-    fn width(&self) -> usize {
+    fn width(&self) -> UDim {
         self.width
     }
 
-    fn height(&self) -> usize {
+    fn height(&self) -> UDim {
         self.height
     }
 
-    fn get_index_of(&self, x: usize, y: usize) -> Option<usize> {
+    fn get_index_of(&self, x: UDim, y: UDim) -> Option<TIndex> {
         let ix = y * self.width + x;
         if ix < self.width * self.height {
-            Some(ix)
+            Some(ix as TIndex)
         } else {
             None
         }
@@ -78,7 +79,7 @@ impl TileMapDataSource<HexU8> for TestMap {
 }
 
 impl TestMap {
-    pub fn new(width: usize, height: usize, is_random: bool) -> Self {
+    pub fn new(width: UDim, height: UDim, is_random: bool) -> Self {
         let data_len = width * height;
         let mut data = if is_random {
             Self::generate_random_vector(data_len)
@@ -90,7 +91,7 @@ impl TestMap {
         // ensure that there is a 0xFF in the data
         let oob_index = {
             if data_len > 0 {
-                let oob_index = data_len - 1;
+                let oob_index = (data_len - 1) as usize;
                 data[oob_index] = HexU8(0xFF);
                 log::info!("OOB VALUE: {:?}", data[oob_index]);
                 oob_index
@@ -106,7 +107,7 @@ impl TestMap {
             oob_index,
         }
     }
-    fn generate_random_vector(length: usize) -> Vec<HexU8> {
+    fn generate_random_vector(length: UDim) -> Vec<HexU8> {
         let seed = [42; 32];
         let mut rng = StdRng::from_seed(seed);
         (0..length).map(|_| HexU8(rng.gen())).collect()
@@ -114,13 +115,13 @@ impl TestMap {
 }
 
 pub(crate) fn make_test_chunk_manager(
-    width: usize,
-    height: usize,
-    layer_count: usize,
+    width: UDim,
+    height: UDim,
+    layer_count: UDim,
     layer_chunk_lru_cache_size: u32,
-    chunk_width: usize,
-    chunk_height: usize,
-    chunk_padding_in_tiles: usize,
+    chunk_width: UDim,
+    chunk_height: UDim,
+    chunk_padding_in_tiles: UDim,
     use_random_map: bool,
     guid: Option<Uuid>,
 ) -> ChunkManager<HexU8> {
@@ -147,13 +148,13 @@ pub(crate) fn make_test_chunk_manager(
 }
 
 fn test_init_cm_with_params(
-    width: usize,
-    height: usize,
-    layer_count: usize,
+    width: UDim,
+    height: UDim,
+    layer_count: UDim,
     layer_chunk_lru_cache_size: u32,
-    chunk_width: usize,
-    chunk_height: usize,
-    chunk_padding_in_tiles: usize,
+    chunk_width: UDim,
+    chunk_height: UDim,
+    chunk_padding_in_tiles: UDim,
     use_random_map: bool,
     last_guid_byte: u8,
 ) {
@@ -178,7 +179,7 @@ fn test_init_cm_with_params(
 
     for y in 0..height {
         for x in 0..width {
-            let _cm_val = cm.get_at(x as isize, y as isize, 0);
+            let _cm_val = cm.get_at(x as IDim, y as IDim, 0);
             // let tm_val= comparison_test_map.get_at(x, y);
             // log::info!("{cm_val:?} :: {tm_val:?}");
             // assert_eq!(cm_val, tm_val);
@@ -272,7 +273,7 @@ fn test_can_get_from_non_zero_layer() {
     log::info!("[INITIAL]");
     cm.log_all_layer_index_diagnostics(false);
 
-    let c = 2_isize.pow(4);
+    let c = 2_isize.pow(4) as IDim;
     log::info!("Looking at ({c}, {c}, 3)");
     let test_val = cm.get_at(c, c, 3).unwrap();
     log::info!("test_val: {test_val:02X}");

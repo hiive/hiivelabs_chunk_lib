@@ -1,3 +1,5 @@
+use hiivelabs_rand_utils_lib::prelude::{TIndex, UDim};
+
 // use crate::prelude::ChunkManager;
 ///
 /// This trait must be implemented by your datasource.
@@ -5,13 +7,13 @@
 pub trait TileMapDataSource<T> {
     /// Returns the width of the tilemap.
     ///
-    /// returns: [`usize`]
-    fn width(&self) -> usize;
+    /// returns: [`UDim`]
+    fn width(&self) -> UDim;
 
     /// Returns the height of the tilemap.
     ///
-    /// returns: [`usize`]
-    fn height(&self) -> usize;
+    /// returns: [`UDim`]
+    fn height(&self) -> UDim;
 
     /// Gets the index for the specified `(x, y)` coordinates.
     /// Returns an `Option<usize>` to handle out-of-bounds access gracefully.
@@ -22,8 +24,8 @@ pub trait TileMapDataSource<T> {
     /// * `y`: The _y_ coordinate.
     ///
     ///
-    /// returns: [`Option<usize>`]
-    fn get_index_of(&self, x: usize, y: usize) -> Option<usize>;
+    /// returns: [`Option<TIndex>`]
+    fn get_index_of(&self, x: UDim, y: UDim) -> Option<TIndex>;
 
     /// Returns the entire data of the tilemap as a `Vec<T>` for consumption.
     /// This might involve flattening the tilemap structure into a `Vec<T>`,
@@ -38,6 +40,6 @@ pub trait TileMapDataSource<T> {
     /// For example, if your tilemap is surrounded by sea, this would return the index of a default
     /// sea tile.
     ///
-    /// returns: [`usize`]
-    fn get_default_out_of_bounds_value_index(&self) -> usize;
+    /// returns: [`TIndex`]
+    fn get_default_out_of_bounds_value_index(&self) -> TIndex;
 }
