@@ -1,10 +1,11 @@
 use crate::bounds::Bounds;
 use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
-use crate::chunk_layer::{ChunkLayer, TIndex};
+use crate::chunk_layer::ChunkLayer;
 use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
 use std::hash::{BuildHasherDefault, Hasher};
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 pub(crate) struct ChunkSeededInterpolator;
 
@@ -13,7 +14,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         &self,
         child_chunk_bounds: Bounds,
         child_layer: &mut ChunkLayer,
-        parent_tiles: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>>,
+        parent_tiles: IndexMap<(IDim, IDim), TIndex, BuildHasherDefault<FxHasher>>,
     ) {
         let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
             child_chunk_bounds.get_bound_coords(true);
@@ -22,7 +23,7 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         let h = 2 + this_layer_y1 - this_layer_y0;
         let s = (w * h) as usize;
         let mut child_tiles: IndexMap<
-            (isize, isize),
+            (IDim, IDim),
             Option<TIndex>,
             BuildHasherDefault<FxHasher>,
         > = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
@@ -55,12 +56,12 @@ impl ChunkGenerator for ChunkSeededInterpolator {
 
     fn generate_chunk_work_from_parent(
         &self,
-        parent_tiles: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>>,
+        parent_tiles: IndexMap<(IDim, IDim), TIndex, BuildHasherDefault<FxHasher>>,
         manager_guid_bytes: [u8; 16],
         child_layer_guid_bytes: [u8; 16],
         child_chunk_bounds: Bounds,
-        mut child_tiles: IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
-    ) -> IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>> {
+        mut child_tiles: IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+    ) -> IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>> {
         // get the layer relative tile coordinates for the area that needs
         // to be set in this chunk
         let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
@@ -70,9 +71,15 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         for this_layer_y in this_layer_y0..this_layer_y1 {
             for this_layer_x in this_layer_x0..this_layer_x1 {
                 // get the parent tile
-                let parent_tile = parent_tiles[&(this_layer_x, this_layer_y)];
+                let key = &(this_layer_x, this_layer_y);
+
+                #[cfg(feature = "multithreaded_chunk_generation")]
+                if !parent_tiles.contains_key(key) {
+                    log::error!("Missing Key! {key:?}")
+                }
+                let parent_tile = parent_tiles[key];
                 // check existing tile
-                let tile_value = child_tiles[&(this_layer_x, this_layer_y)].unwrap_or(parent_tile);
+                let tile_value = child_tiles[key].unwrap_or(parent_tile);
                 // set the tile vale in the chunk from the parent tile value
                 child_tiles.insert((this_layer_x, this_layer_y), Some(tile_value));
             }
@@ -129,11 +136,11 @@ impl ChunkGenerator for ChunkSeededInterpolator {
 impl ChunkSeededInterpolator {
     #[inline(always)]
     fn choose_child_tile(
-        child_tiles: &mut IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+        child_tiles: &mut IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>>,
         hasher: &mut FxHasher,
         seed: &[u8; 32],
-        this_layer_y: isize,
-        this_layer_x: isize,
+        this_layer_y: IDim,
+        this_layer_x: IDim,
     ) {
         let dx = Self::get_coord_offset(hasher, seed, this_layer_x);
         let dy = Self::get_coord_offset(hasher, seed, this_layer_y);
@@ -143,9 +150,9 @@ impl ChunkSeededInterpolator {
     }
 
     #[inline(always)]
-    fn get_coord_offset(hasher: &mut FxHasher, seed: &[u8; 32], coord: isize) -> isize {
+    fn get_coord_offset(hasher: &mut FxHasher, seed: &[u8; 32], coord: IDim) -> IDim {
         hasher.write(seed);
-        hasher.write_isize(coord);
-        (hasher.finish() % 3) as isize - 1
+        hasher.write_isize(coord as isize);
+        (hasher.finish() % 3) as IDim - 1
     }
 }

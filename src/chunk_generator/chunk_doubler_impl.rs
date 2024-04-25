@@ -1,9 +1,10 @@
 use crate::bounds::Bounds;
 use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
-use crate::chunk_layer::{ChunkLayer, TIndex};
+use crate::chunk_layer::ChunkLayer;
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 pub(crate) struct ChunkDoubler;
 
@@ -12,7 +13,7 @@ impl ChunkGenerator for ChunkDoubler {
         &self,
         child_chunk_bounds: Bounds,
         child_layer: &mut ChunkLayer,
-        parent_tiles: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>>,
+        parent_tiles: IndexMap<(IDim, IDim), TIndex, BuildHasherDefault<FxHasher>>,
     ) {
         let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
             child_chunk_bounds.get_bound_coords(true);
@@ -21,7 +22,7 @@ impl ChunkGenerator for ChunkDoubler {
         let h = 2 + this_layer_y1 - this_layer_y0;
         let s = (w * h) as usize;
         let mut child_tiles: IndexMap<
-            (isize, isize),
+            (IDim, IDim),
             Option<TIndex>,
             BuildHasherDefault<FxHasher>,
         > = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
@@ -53,12 +54,12 @@ impl ChunkGenerator for ChunkDoubler {
 
     fn generate_chunk_work_from_parent(
         &self,
-        parent_tiles: IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>>,
+        parent_tiles: IndexMap<(IDim, IDim), TIndex, BuildHasherDefault<FxHasher>>,
         _manager_guid_bytes: [u8; 16],     /* unused */
         _child_layer_guid_bytes: [u8; 16], /* unused */
         child_chunk_bounds: Bounds,
-        mut child_tiles: IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>,
-    ) -> IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>> {
+        mut child_tiles: IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+    ) -> IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>> {
         let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
             child_chunk_bounds.get_bound_coords(true);
 

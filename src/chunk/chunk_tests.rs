@@ -1,12 +1,12 @@
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
-use crate::chunk_layer::TIndex;
 use miniz_oxide::deflate::compress_to_vec;
 use miniz_oxide::inflate::decompress_to_vec;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use std::time::Instant;
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 
 use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 
@@ -61,26 +61,26 @@ fn is_not_complete() {
     assert!(!chunk.is_complete())
 }
 
-fn generate_random_vector(length: usize) -> Vec<usize> {
+fn generate_random_vector(length: usize) -> Vec<TIndex> {
     // let seed = [42; 32];
     // let mut rng = StdRng::from_seed(seed);
     let mut rng = StdRng::from_rng(rand::thread_rng()).unwrap();
     (0..length).map(|_| rng.gen()).collect()
 }
 
-fn build_complete_chunk(width: usize, height: usize, padding: usize, is_random: bool) -> Chunk {
+fn build_complete_chunk(width: UDim, height: UDim, padding: UDim, is_random: bool) -> Chunk {
     let mut chunk = Chunk::new(0, 0, width, height, padding, Uuid::new_v4());
 
-    let x_min = -(chunk.bounds.padding as isize);
-    let x_max = (chunk.bounds.width + chunk.bounds.padding) as isize;
-    let y_min = -(chunk.bounds.padding as isize);
-    let y_max = (chunk.bounds.height + chunk.bounds.padding) as isize;
+    let x_min = -(chunk.bounds.padding as IDim);
+    let x_max = (chunk.bounds.width + chunk.bounds.padding) as IDim;
+    let y_min = -(chunk.bounds.padding as IDim);
+    let y_max = (chunk.bounds.height + chunk.bounds.padding) as IDim;
     let size = chunk.chunk_width * chunk.chunk_height;
-    let values_to_use: Vec<usize> = {
+    let values_to_use: Vec<TIndex> = {
         if is_random {
             generate_random_vector(size)
         } else {
-            (0_usize..(chunk.chunk_width * chunk.chunk_height)).collect()
+            (0_usize..(chunk.chunk_width * chunk.chunk_height)).map(|c| c as TIndex).collect()
         }
     };
     let mut ix = 0;
@@ -99,7 +99,7 @@ fn encode_decode_test() {
     setup_test_logger();
     let chunk = build_complete_chunk(64, 32, 1, true);
     let chunk_mem_size = std::mem::size_of::<Bounds>()
-        + 2 * std::mem::size_of::<usize>()
+        + 2 * std::mem::size_of::<TIndex>()
         + chunk.tiles.len() * std::mem::size_of::<TIndex>();
     log::info!("chunk length: {chunk_mem_size}");
 

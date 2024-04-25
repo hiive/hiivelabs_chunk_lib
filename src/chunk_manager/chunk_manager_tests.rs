@@ -267,7 +267,7 @@ fn test_can_get_from_non_zero_layer() {
     let guid_str = "00000000-0000-0000-0000-111111111111";
     let _ = fs::remove_file(format!("{guid_str}.world"));
     let guid = Some(Uuid::parse_str(guid_str).unwrap());
-    let cm = make_test_chunk_manager(8, 8, 4, 1024, 8, 8, 1, true, guid);
+    let cm = make_test_chunk_manager(8, 8, 4, 128, 8, 8, 1, true, guid);
 
     log::info!("[INITIAL]");
     cm.log_all_layer_index_diagnostics(false);

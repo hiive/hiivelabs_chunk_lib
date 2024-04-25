@@ -1,12 +1,13 @@
 use bitcode::{Decode, Encode};
+use hiivelabs_rand_utils_lib::prelude::{IDim, UDim};
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct Bounds {
-    pub(crate) x: isize,
-    pub(crate) y: isize,
-    pub(crate) width: usize,
-    pub(crate) height: usize,
-    pub(crate) padding: usize,
+    pub(crate) x: IDim,
+    pub(crate) y: IDim,
+    pub(crate) width: UDim,
+    pub(crate) height: UDim,
+    pub(crate) padding: UDim,
 }
 
 impl Bounds {
@@ -20,13 +21,13 @@ impl Bounds {
     /// was at least 1.)
     pub(crate) fn get_index_for_coords(
         &self,
-        x: isize,
-        y: isize,
+        x: IDim,
+        y: IDim,
         err_on_out_of_bounds: bool,
-    ) -> Result<(isize, isize, isize), &str> {
-        let padding = self.padding as isize;
-        let width = self.width as isize;
-        let height = self.height as isize;
+    ) -> Result<(IDim, IDim, IDim), &str> {
+        let padding = self.padding as IDim;
+        let width = self.width as IDim;
+        let height = self.height as IDim;
         let (adj_x, adj_y) = self.get_adjusted_coordinates(x, y);
 
         // #[cfg(debug_assertions)]
@@ -50,7 +51,7 @@ impl Bounds {
         Ok((adj_y * padded_width + adj_x, adj_x, adj_y))
     }
 
-    pub(crate) fn get_width(&self, include_padding: bool) -> usize {
+    pub(crate) fn get_width(&self, include_padding: bool) -> UDim {
         if include_padding {
             self.width + self.padding * 2
         } else {
@@ -58,7 +59,7 @@ impl Bounds {
         }
     }
 
-    pub(crate) fn get_height(&self, include_padding: bool) -> usize {
+    pub(crate) fn get_height(&self, include_padding: bool) -> UDim {
         if include_padding {
             self.height + self.padding * 2
         } else {
@@ -66,20 +67,20 @@ impl Bounds {
         }
     }
 
-    pub(crate) fn get_adjusted_coordinates(&self, x: isize, y: isize) -> (isize, isize) {
-        let padding = self.padding as isize;
+    pub(crate) fn get_adjusted_coordinates(&self, x: IDim, y: IDim) -> (IDim, IDim) {
+        let padding = self.padding as IDim;
         (x + padding - self.x, y + padding - self.y)
     }
 
-    pub(crate) fn get_bound_coords(&self, include_padding: bool) -> (isize, isize, isize, isize) {
+    pub(crate) fn get_bound_coords(&self, include_padding: bool) -> (IDim, IDim, IDim, IDim) {
         let padding = if include_padding {
-            self.padding as isize
+            self.padding as IDim
         } else {
             0
         };
 
-        let padded_width = self.width as isize + 2 * padding;
-        let padded_height = self.height as isize + 2 * padding;
+        let padded_width = self.width as IDim + 2 * padding;
+        let padded_height = self.height as IDim + 2 * padding;
 
         let min_x = self.x - padding;
         let min_y = self.y - padding;
@@ -98,16 +99,16 @@ impl Bounds {
         padded_width * padded_height
     }
 
-    pub(crate) fn is_coords_in_bounds(&self, tx: isize, ty: isize, with_padding: bool) -> bool {
+    pub(crate) fn is_coords_in_bounds(&self, tx: IDim, ty: IDim, with_padding: bool) -> bool {
         let (min_x, min_y, max_x, max_y) = self.get_bound_coords(with_padding);
         tx >= min_x && tx < max_x && ty >= min_y && ty < max_y
     }
 
     /// This confirms that the specified index is in bounds.
-    pub(crate) fn is_index_in_bounds(&self, ix: isize) -> bool {
-        let padding = self.padding as isize;
-        let padded_width = self.width as isize + 2 * padding;
-        let padded_height = self.height as isize + 2 * padding;
+    pub(crate) fn is_index_in_bounds(&self, ix: IDim) -> bool {
+        let padding = self.padding as IDim;
+        let padded_width = self.width as IDim + 2 * padding;
+        let padded_height = self.height as IDim + 2 * padding;
         let max_ix = padded_width * padded_height;
         // check is in bounds.
         ix >= 0 && ix < max_ix

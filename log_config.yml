@@ -35,9 +35,9 @@ loggers:
 #      - stdout
 #    additive: false
 
-  hiivelabs_chunk_lib::chunk_storage:
-    level: off
-    additive: false
+#  hiivelabs_chunk_lib::chunk_storage:
+#    level: off
+#    additive: false
 
 #  hiivelabs_storage_lib:
 #    level: off

@@ -73,8 +73,8 @@ impl ChunkStorageThreadHandler {
                         let chunk_unique_id = chunk.get_unique_id(true);
                         let mut attempts = 0;
                         loop {
-                            let self_lock_opt = arced_self.try_lock();
-                            match self_lock_opt {
+                            let self_lock_result = arced_self.try_lock();
+                            match self_lock_result {
                                 Ok(self_lock) => {
                                     self_lock.save_chunk(&mut chunk);
                                     break;

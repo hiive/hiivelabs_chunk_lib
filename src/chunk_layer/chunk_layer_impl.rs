@@ -1,12 +1,8 @@
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
-use std::any::Any;
-use std::hash::BuildHasherDefault;
-use std::rc::Rc;
-use std::sync::{Arc, RwLock, Mutex};
 
-use hiivelabs_rand_utils_lib::prelude::WorkerPoolMessage::WorkerTask;
-use hiivelabs_rand_utils_lib::prelude::{Task, WorkerPoolMessage};
+use std::hash::BuildHasherDefault;
+use std::sync::{Arc, RwLock, Mutex};
 use hiivelabs_storage_lib::prelude::UniqueId;
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -17,15 +13,19 @@ use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
 use crate::chunk_storage::chunk_storage_manager_impl::ChunkStorageManager;
 
-pub type TIndex = usize;
+#[cfg(feature = "multithreaded_chunk_generation")]
+use std::any::Any;
+#[cfg(feature = "multithreaded_chunk_generation")]
+use hiivelabs_rand_utils_lib::prelude::{Task, WorkerPoolMessage, WorkerPoolMessage::WorkerTask};
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
+
 
 pub struct ChunkLayer {
-    pub(crate) layer_id: usize,
+    pub(crate) layer_id: UDim,
     pub(crate) chunk_bounds: Bounds, // this is in chunk-coords
     pub(crate) tile_bounds: Bounds,  // this is in tile-coords
-    pub(crate) chunk_width_in_tiles: usize,
-    pub(crate) chunk_height_in_tiles: usize,
-    // pub(crate) chunks: RefCell<LruMap<isize, Chunk>>,
+    pub(crate) chunk_width_in_tiles: UDim,
+    pub(crate) chunk_height_in_tiles: UDim,
     pub(crate) chunks: Mutex<ChunkStorageManager>,
     pub(crate) parent_layer: Arc<RwLock<Option<ChunkLayer>>>,
     pub(crate) out_of_bounds_value_index: Option<TIndex>,
@@ -41,15 +41,15 @@ impl ChunkLayer {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         parent_layer: Arc<RwLock<Option<ChunkLayer>>>,
-        layer_id: usize,
+        layer_id: UDim,
         manager_guid_bytes: [u8; 16],
         layer_guid_bytes: [u8; 16],
         layer_chunk_lru_cache_size: u32,
-        width_in_chunks: usize,
-        height_in_chunks: usize,
-        chunk_padding_in_tiles: usize,
-        chunk_width_in_tiles: usize,
-        chunk_height_in_tiles: usize,
+        width_in_chunks: UDim,
+        height_in_chunks: UDim,
+        chunk_padding_in_tiles: UDim,
+        chunk_width_in_tiles: UDim,
+        chunk_height_in_tiles: UDim,
         out_of_bounds_value_index: Option<TIndex>,
     ) -> Self {
         let width_in_tiles = width_in_chunks * chunk_width_in_tiles;
@@ -85,26 +85,26 @@ impl ChunkLayer {
         }
     }
 
-    pub(crate) fn get_hash_index_for_chunk_coords(&self, cx: isize, cy: isize) -> Option<isize> {
+    pub(crate) fn get_hash_index_for_chunk_coords(&self, cx: IDim, cy: IDim) -> Option<IDim> {
         if cx < 0
-            || cx >= self.chunk_bounds.width as isize
+            || cx >= self.chunk_bounds.width as IDim
             || cy < 0
-            || cy >= self.chunk_bounds.height as isize
+            || cy >= self.chunk_bounds.height as IDim
         {
             return None;
         }
 
-        let ix = cx + (cy * self.chunk_bounds.width as isize);
+        let ix = cx + (cy * self.chunk_bounds.width as IDim);
         Some(ix)
     }
 
     pub(crate) fn get_chunk_coords_for_hash_index(
         &self,
-        hash_index: isize,
-    ) -> Option<(isize, isize)> {
+        hash_index: IDim,
+    ) -> Option<(IDim, IDim)> {
         // Check if the index is within the valid range
-        let width = self.chunk_bounds.width as isize;
-        let height = self.chunk_bounds.height as isize;
+        let width = self.chunk_bounds.width as IDim;
+        let height = self.chunk_bounds.height as IDim;
         if hash_index < 0 || hash_index >= width * height {
             return None;
         }
@@ -115,46 +115,46 @@ impl ChunkLayer {
         Some((cx, cy))
     }
 
-    pub(crate) fn is_chunk_border_coord(&self, tx: isize, ty: isize) -> (bool, bool) {
+    pub(crate) fn is_chunk_border_coord(&self, tx: IDim, ty: IDim) -> (bool, bool) {
         (
             // has to be inside outer bounds, and also within padding between chunks
             tx < 0
                 || (tx > 0
-                    && tx <= self.tile_bounds.width as isize
-                    && tx % self.chunk_width_in_tiles as isize == 0),
+                    && tx <= self.tile_bounds.width as IDim
+                    && tx % self.chunk_width_in_tiles as IDim == 0),
             ty < 0
                 || (ty > 0
-                    && ty <= self.tile_bounds.height as isize
-                    && ty % self.chunk_height_in_tiles as isize == 0),
+                    && ty <= self.tile_bounds.height as IDim
+                    && ty % self.chunk_height_in_tiles as IDim == 0),
         )
     }
 
-    pub(crate) fn tile_coords_to_chunk_coords(&self, tx: isize, ty: isize) -> (isize, isize) {
+    pub(crate) fn tile_coords_to_chunk_coords(&self, tx: IDim, ty: IDim) -> (IDim, IDim) {
         (
-            tx / self.chunk_width_in_tiles as isize,
-            ty / self.chunk_height_in_tiles as isize,
+            tx / self.chunk_width_in_tiles as IDim,
+            ty / self.chunk_height_in_tiles as IDim,
         )
     }
 
-    pub(crate) fn chunk_coords_to_tile_coords(&self, cx: isize, cy: isize) -> (isize, isize) {
+    pub(crate) fn chunk_coords_to_tile_coords(&self, cx: IDim, cy: IDim) -> (IDim, IDim) {
         (
-            cx * self.chunk_width_in_tiles as isize,
-            cy * self.chunk_height_in_tiles as isize,
+            cx * self.chunk_width_in_tiles as IDim,
+            cy * self.chunk_height_in_tiles as IDim,
         )
     }
 
     pub(crate) fn get_chunk_indices_for_tile_coords(
         &self,
-        tx: isize,
-        ty: isize,
-    ) -> SmallVec<(isize, (isize, isize)), 4> {
+        tx: IDim,
+        ty: IDim,
+    ) -> SmallVec<(IDim, (IDim, IDim)), 4> {
         // there are two main possibilities here.
         // 1. It's a chunk boundary, so multiple chunks will be returned.
         // 2. It's within a chunk, so only one chunk will be returned
         let mut chunk_indices = SmallVec::with_capacity(4);
-        let padding = self.tile_bounds.padding as isize;
-        let width = self.tile_bounds.width as isize;
-        let height = self.tile_bounds.width as isize;
+        let padding = self.tile_bounds.padding as IDim;
+        let width = self.tile_bounds.width as IDim;
+        let height = self.tile_bounds.width as IDim;
 
         // short circuit if well out of bounds
         if tx < -padding || tx >= width + padding || ty < -padding || ty >= height + padding {
@@ -187,8 +187,8 @@ impl ChunkLayer {
         } else {
             // calculate the boundary of the indexed chunk
             let (c_tx, c_ty) = self.chunk_coords_to_tile_coords(cx, cy);
-            let chunk_r = c_tx + self.chunk_width_in_tiles as isize;
-            let chunk_b = c_ty + self.chunk_height_in_tiles as isize;
+            let chunk_r = c_tx + self.chunk_width_in_tiles as IDim;
+            let chunk_b = c_ty + self.chunk_height_in_tiles as IDim;
             // check if boundary is left or right, top or bottom
             let d_cx = {
                 if tx == chunk_r {
@@ -226,9 +226,9 @@ impl ChunkLayer {
 
     fn add_boundary_chunk_if_in_bounds(
         &self,
-        chunk_indices: &mut SmallVec<(isize, (isize, isize)), 4>,
-        cx: isize,
-        cy: isize,
+        chunk_indices: &mut SmallVec<(IDim, (IDim, IDim)), 4>,
+        cx: IDim,
+        cy: IDim,
     ) {
         let chunk_ix = self.get_hash_index_for_chunk_coords(cx, cy);
         if let Some(ix) = chunk_ix {
@@ -239,14 +239,14 @@ impl ChunkLayer {
         }
     }
 
-    pub(crate) fn ensure_chunk_exists_at_tile_coords(&mut self, tx: isize, ty: isize) {
+    pub(crate) fn ensure_chunk_exists_at_tile_coords(&mut self, tx: IDim, ty: IDim) {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
     }
 
     pub(crate) fn ensure_chunk_exists_by_indices(
         &self,
-        chunk_ixs: &SmallVec<(isize, (isize, isize)), 4>,
+        chunk_ixs: &SmallVec<(IDim, (IDim, IDim)), 4>,
     ) {
         let mut chunks = self.chunks.try_lock().expect("Can't lock chunks");
         for (_chunk_ix, (cx, cy)) in chunk_ixs {
@@ -281,7 +281,7 @@ impl ChunkLayer {
         }
     }
 
-    pub fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
+    pub fn set_at(&mut self, tx: IDim, ty: IDim, value: TIndex) -> Result<(), &str> {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         self.ensure_chunk_exists_by_indices(&chunk_ixs);
 
@@ -303,11 +303,11 @@ impl ChunkLayer {
         }
     }
 
-    pub fn get_at(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
+    pub fn get_at(&mut self, tx: IDim, ty: IDim) -> Option<TIndex> {
         self.get_at_internal(tx, ty, false)
     }
 
-    pub fn get_at_or_default(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
+    pub fn get_at_or_default(&mut self, tx: IDim, ty: IDim) -> Option<TIndex> {
         let chunk_opt = self.get_at_internal(tx, ty, true);
         match chunk_opt {
             None => self.out_of_bounds_value_index,
@@ -316,7 +316,7 @@ impl ChunkLayer {
     }
 
     #[cfg(experimental)]
-    pub(crate) fn peek_at_or_default(&mut self, tx: isize, ty: isize) -> Option<TIndex> {
+    pub(crate) fn peek_at_or_default(&mut self, tx: IDim, ty: IDim) -> Option<TIndex> {
         // let chunk_opt = self.get_at_internal(tx, ty, true);
         // match chunk_opt {
         //     None => self.out_of_bounds_value_index,
@@ -350,7 +350,7 @@ impl ChunkLayer {
     }
 
     #[inline(always)]
-    fn get_at_internal(&mut self, tx: isize, ty: isize, include_padding: bool) -> Option<TIndex> {
+    fn get_at_internal(&mut self, tx: IDim, ty: IDim, include_padding: bool) -> Option<TIndex> {
         let (cropped_x_min, cropped_y_min, cropped_x_max, cropped_y_max) =
             self.tile_bounds.get_bound_coords(include_padding);
         let oob =
@@ -380,7 +380,7 @@ impl ChunkLayer {
         }
     }
 
-    fn get_first_chunk_index_at_tile_coords(&mut self, tx: isize, ty: isize) -> Option<isize> {
+    fn get_first_chunk_index_at_tile_coords(&mut self, tx: IDim, ty: IDim) -> Option<IDim> {
         let chunk_ixs = self.get_chunk_indices_for_tile_coords(tx, ty);
         if chunk_ixs.is_empty() {
             log::warn!(
@@ -399,9 +399,9 @@ impl ChunkLayer {
     #[inline(always)]
     pub(crate) fn convert_to_parent_layer_tile_coordinates(
         &self,
-        tx: isize,
-        ty: isize,
-    ) -> (isize, isize) {
+        tx: IDim,
+        ty: IDim,
+    ) -> (IDim, IDim) {
         // the source coordinates in the parent layer
         // will be half of the destination coordinates,
         // as the parent layer is half the size in each dimension
@@ -411,8 +411,8 @@ impl ChunkLayer {
     #[cfg(feature = "multithreaded_chunk_generation")]
     pub(crate) fn get_ensure_chunk_is_complete_work(
         &mut self,
-        tx: isize,
-        ty: isize,
+        tx: IDim,
+        ty: IDim,
     ) -> Option<Vec<WorkerPoolMessage>> {
         if self.layer_id == 0 {
             // nothing to do.
@@ -460,7 +460,7 @@ impl ChunkLayer {
 
                 let child_tiles = {
                     let mut child_tiles: IndexMap<
-                        (isize, isize),
+                        (IDim, IDim),
                         Option<TIndex>,
                         BuildHasherDefault<FxHasher>,
                     > = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
@@ -493,7 +493,7 @@ impl ChunkLayer {
                         Some(Box::new(result) as Box<dyn Any + Send>)
                     },
                 );
-                let task_id = *chunk_ix as usize;
+                let task_id = *chunk_ix as UDim;
                 let task = WorkerPoolMessage::WorkerTask(Task {
                     priority: self.layer_id,
                     task_id: Some(task_id),
@@ -507,7 +507,7 @@ impl ChunkLayer {
         Some(tasks)
     }
 
-    pub(crate) fn ensure_chunk_is_complete(&mut self, tx: isize, ty: isize) {
+    pub(crate) fn ensure_chunk_is_complete(&mut self, tx: IDim, ty: IDim) {
         if self.layer_id == 0 {
             // nothing to do.
             // layer zero is always considered complete as it's
@@ -557,12 +557,11 @@ impl ChunkLayer {
     fn get_parent_tiles_for_expansion(
         &mut self,
         chunk_bounds: &Bounds,
-    ) -> IndexMap<(isize, isize), TIndex, BuildHasherDefault<FxHasher>> {
+    ) -> IndexMap<(IDim, IDim), TIndex, BuildHasherDefault<FxHasher>> {
         // let's get the parent layer tiles that we are going to need...
         // a bit ugly, but it will work
         let parent_tiles = {
             let child_capacity = chunk_bounds.get_tile_count(true);
-            // nohash_hasher::BuildNoHashHasher<(isize, isize)>
             let mut expansion_tiles =
                 IndexMap::with_capacity_and_hasher(child_capacity, BuildHasherDefault::default());
 
@@ -571,14 +570,14 @@ impl ChunkLayer {
             // can change based on retrieval.
             // let mut parent_layer_ref = self.parent_layer.borrow_mut();
             if let Ok(mut layer_lock) = self.parent_layer.try_write() {
-                let mut parent_layer = layer_lock.as_mut().unwrap();
+                let parent_layer = layer_lock.as_mut().unwrap();
 
                 let (this_layer_x0, this_layer_y0, this_layer_x1, this_layer_y1) =
                     chunk_bounds.get_bound_coords(true);
 
                 let parent_capacity = parent_layer.tile_bounds.get_tile_count(true);
                 let mut parent_tiles_cache: IndexMap<
-                    (isize, isize),
+                    (IDim, IDim),
                     TIndex,
                     BuildHasherDefault<FxHasher>,
                 > = IndexMap::with_capacity_and_hasher(
@@ -586,7 +585,7 @@ impl ChunkLayer {
                     BuildHasherDefault::default(),
                 );
 
-                let padding = self.tile_bounds.padding as isize;
+                let padding = self.tile_bounds.padding as IDim;
 
                 for this_layer_y in this_layer_y0 - padding..this_layer_y1 + padding {
                     for this_layer_x in this_layer_x0 - padding..this_layer_x1 + padding {
@@ -644,8 +643,8 @@ impl ChunkLayer {
         let bb = (
             0,
             0,
-            self.tile_bounds.width as isize,
-            self.tile_bounds.height as isize,
+            self.tile_bounds.width as IDim,
+            self.tile_bounds.height as IDim,
         );
         log::trace!("(x, y, w, h) = {bb:?}");
 

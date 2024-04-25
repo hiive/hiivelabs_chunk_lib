@@ -1,17 +1,21 @@
 use hiivelabs_storage_lib::prelude::UniqueId;
-use indexmap::{IndexMap, IndexSet};
+
+
+use rustc_hash::{FxHashMap};
+#[cfg(feature = "multithreaded_chunk_generation")]
+use rustc_hash::{FxHasher};
+#[cfg(feature = "multithreaded_chunk_generation")]
 use log::log;
-use rustc_hash::{FxHashMap, FxHasher};
-use std::collections::{HashMap, HashSet};
+#[cfg(feature = "multithreaded_chunk_generation")]
+use indexmap::{IndexMap, IndexSet};
+
 use std::hash::BuildHasherDefault;
 use std::sync::{Arc, RwLock};
 
 use uuid::Uuid;
 
-use crate::chunk_layer::{ChunkLayer, TIndex};
-use crate::chunk_seed_utils::chunk_seed_utils_impl::{
-    create_seed_from_guid_bytes_x_y, get_chunk_manager_unique_id,
-};
+use crate::chunk_layer::ChunkLayer;
+use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
 
 use crate::tilemap_datasource::TileMapDataSource;
 
@@ -27,6 +31,7 @@ use std::sync::mpsc::{self, Receiver, RecvError};
 use std::thread;
 #[cfg(feature = "multithreaded_chunk_generation")]
 use std::thread::JoinHandle;
+use hiivelabs_rand_utils_lib::prelude::TIndex;
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
@@ -194,37 +199,55 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 match result_opt {
                     None => {
                         log::info!("Shutdown ack received for worker pool thread: [{id:?}]");
-                        // println!("Shutdown ack received for worker pool thread: [{id:?}]");
                         thread_count_remaining -= 1;
                     }
                     Some(result) => {
-                        log::info!("Result received for worker pool thread: [{id:?}]");
-                        // println!("Result received for worker pool thread: [{id:?}]");
+                        // log::info!("Result received for worker pool thread: [{id:?}]:{info:?}");
                         if let Ok(index_map) = result.downcast::<IndexMap<
                             (isize, isize),
                             Option<TIndex>,
-                            BuildHasherDefault<FxHasher>,
+                            BuildHasherDefault<FxHasher>
                         >>() {
                             // `index_map` is now a `Box<IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>>`
                             let layer_id = info.expect("No layer id!");
                             let layer_arc = layers.get(layer_id).expect("Invalid layer arc");
-                            let mut layer_lock = layer_arc.try_write().expect("Can't get lock");
-                            let mut layer = layer_lock.as_mut().expect("Can't get layer");
-
                             let mut index_map = *index_map;
-                            for ((tx, ty), t_opt) in index_map.drain(..) {
-                                match t_opt {
-                                    None => {
-                                        panic!("Should not be empty!")
+
+                            let mut attempts = 0;
+                            loop {
+                                let mut layer_lock_result = layer_arc.try_write();
+                                match layer_lock_result {
+                                    Ok(mut layer_lock) => {
+                                        let mut layer = layer_lock.as_mut().expect("Can't get layer");
+                                        for ((tx, ty), t_opt) in index_map.drain(..) {
+                                            match t_opt {
+                                                None => {
+                                                    panic!("Should not be empty!")
+                                                }
+                                                Some(t) => {
+                                                    let layer_set_result = layer.set_at(tx, ty, t);
+                                                    if layer_set_result.is_err() {
+                                                        log::error!("Error setting layer value: ({tx}, {ty}, {layer_id}) -> {t} : {}", layer_set_result.unwrap_err())
+                                                    }
+                                                    // println!("[{}, {layer_id}]  ({tx},{ty},{layer_id}) -> {t}", id.unwrap());
+                                                }
+                                            }
+                                        }
+                                        let _ = job_complete_tx.send(id.expect("No job id!"));
+                                        break;
                                     }
-                                    Some(t) => {
-                                        let _ = layer.set_at(tx, ty, t);
-                                        // println!("[{}, {layer_id}]  ({tx},{ty},{layer_id}) -> {t}", id.unwrap());
+                                    Err(err) => {
+                                        attempts += 1;
+                                        thread::sleep(std::time::Duration::from_millis(10));
+                                        if attempts > 5 {
+                                            log::error!("failed to obtain write lock for layer [{layer_id} : [{err:?}]");
+                                            break;
+                                        }
                                     }
                                 }
+
                             }
-                            let _ = job_complete_tx.send(id.expect("No job id!"));
-                            // You can use `*index_map` to take the IndexMap out of the box if needed
+
                         }
                     }
                 }
@@ -271,11 +294,24 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let some_layer = self.layers.get(z);
         match some_layer {
             Some(layer_rc) => {
-                if let Ok(layer_lock) = layer_rc.try_read() {
-                    let layer = layer_lock.as_ref().unwrap();
-                    Ok(layer.tile_bounds.get_bound_coords(include_padding))
-                } else {
-                    Err("Couldn't lock layer")
+                let mut attempts = 0;
+                loop {
+                    let layer_lock_result = layer_rc.try_read();
+                    match layer_lock_result {
+                        Ok(layer_lock) => {
+                            let layer = layer_lock.as_ref().expect("Can't get layer");
+                            return Ok(layer.tile_bounds.get_bound_coords(include_padding))
+                        }
+                        Err(err) => {
+                            attempts += 1;
+                            #[cfg(feature = "multithreaded_chunk_generation")]
+                            thread::sleep(std::time::Duration::from_millis(10));
+                            if attempts > 5 {
+                                log::error!("Couldn't lock layer: {err:?}");
+                                return Err("Couldn't lock layer");
+                            }
+                        }
+                    }
                 }
             }
             _ => Err("Layer z coordinate out of bounds"),
@@ -307,25 +343,42 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                 self.ensure_layer_chunks_are_complete(x, y, z);
                 // the preceding method borrows layers,
                 // so has to run before the rest of the method.
-                if let Ok(mut layer_lock) = layer_rc.try_write() {
-                    let mut layer = layer_lock.as_mut().unwrap();
+                let mut attempts= 0;
+                loop {
+                    let layer_lock_result = layer_rc.try_write();
+                    match layer_lock_result {
+                        Ok(mut layer_lock) => {
+                            let layer = layer_lock.as_mut().expect("Can't get layer");
 
-                    // if we are out of bounds, we can short circuit and
-                    // return the oob value from the top layer.
-                    if x < 0
-                        || y < 0
-                        || x >= layer.tile_bounds.width as isize
-                        || y >= layer.tile_bounds.width as isize
-                    {
-                        return Ok(&self.owned_values[self.out_of_bounds_value_index]);
-                    }
+                            // if we are out of bounds, we can short circuit and
+                            // return the oob value from the top layer.
+                            if x < 0
+                                || y < 0
+                                || x >= layer.tile_bounds.width as isize
+                                || y >= layer.tile_bounds.width as isize
+                            {
+                                return Ok(&self.owned_values[self.out_of_bounds_value_index]);
+                            }
 
-                    match layer.get_at(x, y) {
-                        Some(ix) => Ok(&self.owned_values[ix]),
-                        _ => Err("(x, y) coordinates out of bounds"),
+                            match layer.get_at(x, y) {
+                                Some(ix) => {
+                                    return Ok(&self.owned_values[ix])
+                                }
+                                _ => {
+                                    return Err("(x, y) coordinates out of bounds")
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            attempts += 1;
+                            #[cfg(feature = "multithreaded_chunk_generation")]
+                            thread::sleep(std::time::Duration::from_millis(10));
+                            if attempts > 5 {
+                                log::error!("Couldn't lock layer: {err:?}");
+                                return Err("Couldn't lock layer");
+                            }
+                        }
                     }
-                } else {
-                    Err("Couldn't lock layer")
                 }
             }
             _ => Err("Layer z coordinate out of bounds"),
@@ -362,10 +415,26 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // is complete, so it can be used to calculate the next layer corresponding chunk.
         #[cfg(not(feature = "multithreaded_chunk_generation"))] // this is the non-multithreaded one
         for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
-            let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
-            if let Ok(mut layer_lock) = layer_rc.try_write() {
-                let mut layer = layer_lock.as_mut().unwrap();
-                layer.ensure_chunk_is_complete(*tx, *ty);
+            let mut attempts = 0;
+            loop {
+                let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
+                let layer_lock_result = layer_rc.try_write();
+                match layer_lock_result {
+                    Ok(mut layer_lock) => {
+                        let layer = layer_lock.as_mut().expect("Can't get layer");
+                        layer.ensure_chunk_is_complete(*tx, *ty);
+                        break;
+                    }
+                    Err(err) => {
+                        attempts += 1;
+                        #[cfg(feature = "multithreaded_chunk_generation")]
+                        thread::sleep(std::time::Duration::from_millis(10));
+                        if attempts > 5 {
+                            log::error!("Couldn't lock layer: {err:?}");
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -374,12 +443,23 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             for (layer_id, (tx, ty)) in coord_map.iter().enumerate().take(z + 1).skip(1) {
                 let layer_rc = self.layers.get(layer_id).expect("Can't get layer.");
                 let tasks_opt = {
-                    if let Ok(mut layer_lock) = layer_rc.try_write() {
-                        let mut layer = layer_lock.as_mut().unwrap();
-                        // layer.ensure_chunk_is_complete(*tx, *ty);
-                        layer.get_ensure_chunk_is_complete_work(*tx, *ty)
-                    } else {
-                        None
+                    let mut attempts = 0;
+                    loop {
+                        let layer_lock_result = layer_rc.try_write();
+                        match layer_lock_result {
+                            Ok(mut layer_lock) => {
+                                let mut layer = layer_lock.as_mut().expect("Can't get layer");
+                                // layer.ensure_chunk_is_complete(*tx, *ty);
+                                break layer.get_ensure_chunk_is_complete_work(*tx, *ty);
+                            }
+                            Err(_) => {
+                                attempts += 1;
+                                thread::sleep(std::time::Duration::from_millis(10));
+                                if attempts > 5 {
+                                    break None;
+                                }
+                            }
+                        }
                     }
                 };
 
@@ -531,15 +611,31 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         log::info!("ChunkManager [{}]", self.get_unique_id(true));
 
         for layer_rc in &self.layers {
-            if let Ok(mut layer_lock) = layer_rc.try_write() {
-                let mut layer = layer_lock.as_mut().unwrap();
+            let mut attempts = 0;
+            loop {
+                let layer_lock_result = layer_rc.try_write();
+                match layer_lock_result {
+                    Ok(mut layer_lock) => {
+                        let layer = layer_lock.as_mut().expect("Can't get layer");
 
-                // for debug printing, replace the old oob value with the layer 0 one
-                let old_oob = layer.out_of_bounds_value_index;
-                layer.out_of_bounds_value_index = Some(self.out_of_bounds_value_index);
-                layer.log_diagnostics(with_padding);
-                // restore the old value when we're done.
-                layer.out_of_bounds_value_index = old_oob;
+                        // for debug printing, replace the old oob value with the layer 0 one
+                        let old_oob = layer.out_of_bounds_value_index;
+                        layer.out_of_bounds_value_index = Some(self.out_of_bounds_value_index);
+                        layer.log_diagnostics(with_padding);
+                        // restore the old value when we're done.
+                        layer.out_of_bounds_value_index = old_oob;
+                        break;
+                    }
+                    Err(err) => {
+                        attempts += 1;
+                        #[cfg(feature = "multithreaded_chunk_generation")]
+                        thread::sleep(std::time::Duration::from_millis(10));
+                        if attempts > 5 {
+                            log::error!("Couldn't lock layer: {err:?}");
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
@@ -558,12 +654,27 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         let layer_bounds = {
             let mut lbs = Vec::with_capacity(self.layers.len());
             for layer_rc in &self.layers {
-                if let Ok(mut layer_lock) = layer_rc.try_read() {
-                    let mut layer = layer_lock.as_ref().unwrap();
-
-                    let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
-                    let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
-                    lbs.push((print_bounds, cropped_bounds, layer.get_unique_id(true)));
+                let mut attempts = 0;
+                loop {
+                    let layer_lock_result = layer_rc.try_read();
+                    match layer_lock_result {
+                        Ok(layer_lock) => {
+                            let layer = layer_lock.as_ref().expect("Can't get layer");
+                            let print_bounds = layer.tile_bounds.get_bound_coords(with_padding);
+                            let cropped_bounds = layer.tile_bounds.get_bound_coords(false);
+                            lbs.push((print_bounds, cropped_bounds, layer.get_unique_id(true)));
+                            break;
+                        }
+                        Err(err) => {
+                            attempts += 1;
+                            #[cfg(feature = "multithreaded_chunk_generation")]
+                            thread::sleep(std::time::Duration::from_millis(10));
+                            if attempts > 5 {
+                                log::error!("Couldn't lock layer: {err:?}");
+                                break;
+                            }
+                        }
+                    }
                 }
             }
             lbs

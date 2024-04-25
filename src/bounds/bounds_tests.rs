@@ -1,3 +1,4 @@
+use hiivelabs_rand_utils_lib::prelude::IDim;
 use crate::bounds::Bounds;
 use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 
@@ -143,9 +144,9 @@ fn test_is_in_bounds_false() {
         padding: 1, // Adjusted padding to ensure the logic in `is_index_in_bounds` is correct.
     };
 
-    // Assuming the adjustment for `is_index_in_bounds` logic: `ix < 0 || ix >= max_ix as isize`
+    // Assuming the adjustment for `is_index_in_bounds` logic: `ix < 0 || ix >= max_ix as IDim`
     // Note: The test indicates a logic correction needed in `is_index_in_bounds`.
-    let max_index = bounds.width as isize * bounds.height as isize;
+    let max_index = bounds.width as IDim * bounds.height as IDim;
     assert!(bounds.is_index_in_bounds(max_index)); // Should be out of bounds
 }
 

@@ -1,13 +1,13 @@
 use crate::bounds::Bounds;
-use crate::chunk_layer::TIndex;
 use bitcode::{Decode, Encode};
 use uuid::Uuid;
+use hiivelabs_rand_utils_lib::prelude::{TIndex, UDim, IDim};
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct Chunk {
     pub(crate) bounds: Bounds,
-    pub(crate) chunk_width: usize,
-    pub(crate) chunk_height: usize,
+    pub(crate) chunk_width: UDim,
+    pub(crate) chunk_height: UDim,
     pub(crate) tiles: Vec<Option<TIndex>>,
     pub(crate) guid_bytes: [u8; 16],
     pub(crate) is_dirty: bool,
@@ -15,11 +15,11 @@ pub struct Chunk {
 
 impl Chunk {
     pub(crate) fn new(
-        x: isize,
-        y: isize,
-        width: usize,
-        height: usize,
-        padding: usize,
+        x: IDim,
+        y: IDim,
+        width: UDim,
+        height: UDim,
+        padding: UDim,
         chunk_guid: Uuid,
     ) -> Self {
         let chunk_width = width + 2 * padding;
@@ -49,7 +49,7 @@ impl Chunk {
         }
     }
 
-    pub(crate) fn get_at(&self, tx: isize, ty: isize) -> Option<TIndex> {
+    pub(crate) fn get_at(&self, tx: IDim, ty: IDim) -> Option<TIndex> {
         let result = self.bounds.get_index_for_coords(tx, ty, true);
         match result {
             Ok((ix, _, _)) => self.get_by_index(ix),
@@ -61,8 +61,8 @@ impl Chunk {
 
     pub(crate) fn get_at_or_default(
         &self,
-        tx: isize,
-        ty: isize,
+        tx: IDim,
+        ty: IDim,
         default_value: Option<TIndex>,
     ) -> Option<TIndex> {
         if let Ok((ix, _, _)) = self.bounds.get_index_for_coords(tx, ty, false) {
@@ -74,11 +74,12 @@ impl Chunk {
         default_value
     }
 
+    // todo: should this be IDim
     fn get_by_index(&self, ix: isize) -> Option<TIndex> {
         if ix >= self.tiles.len() as isize {
             None
         } else {
-            self.tiles[ix as usize]
+            self.tiles[ix as UDim]
         }
     }
 
@@ -93,7 +94,7 @@ impl Chunk {
         none_count
     }
 
-    pub(crate) fn set_at(&mut self, tx: isize, ty: isize, value: TIndex) -> Result<(), &str> {
+    pub(crate) fn set_at(&mut self, tx: IDim, ty: IDim, value: TIndex) -> Result<(), &str> {
         // #[cfg(debug_assertions)]
         // println!("Chunk::set_at: get_index_for_coords: ({tx}, {ty}) -> ({ix})");
 
