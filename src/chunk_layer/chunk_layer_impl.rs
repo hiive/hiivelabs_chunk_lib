@@ -1,10 +1,10 @@
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
 
-use std::hash::BuildHasherDefault;
-use std::sync::{Arc, RwLock, Mutex};
 use hiivelabs_storage_lib::prelude::UniqueId;
 use smallvec::SmallVec;
+use std::hash::BuildHasherDefault;
+use std::sync::{Arc, Mutex, RwLock};
 use uuid::Uuid;
 
 use crate::bounds::Bounds;
@@ -13,12 +13,11 @@ use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
 use crate::chunk_storage::chunk_storage_manager_impl::ChunkStorageManager;
 
-#[cfg(feature = "multithreaded_chunk_generation")]
-use std::any::Any;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 #[cfg(feature = "multithreaded_chunk_generation")]
 use hiivelabs_rand_utils_lib::prelude::{Task, WorkerPoolMessage, WorkerPoolMessage::WorkerTask};
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
-
+#[cfg(feature = "multithreaded_chunk_generation")]
+use std::any::Any;
 
 pub struct ChunkLayer {
     pub(crate) layer_id: UDim,
@@ -98,10 +97,7 @@ impl ChunkLayer {
         Some(ix)
     }
 
-    pub(crate) fn get_chunk_coords_for_hash_index(
-        &self,
-        hash_index: IDim,
-    ) -> Option<(IDim, IDim)> {
+    pub(crate) fn get_chunk_coords_for_hash_index(&self, hash_index: IDim) -> Option<(IDim, IDim)> {
         // Check if the index is within the valid range
         let width = self.chunk_bounds.width as IDim;
         let height = self.chunk_bounds.height as IDim;

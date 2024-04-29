@@ -1,5 +1,5 @@
-use hiivelabs_rand_utils_lib::prelude::IDim;
 use crate::bounds::Bounds;
+use hiivelabs_rand_utils_lib::prelude::IDim;
 use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 
 #[test]

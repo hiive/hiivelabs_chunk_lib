@@ -1,9 +1,9 @@
 use crate::bounds::Bounds;
 use crate::chunk_layer::ChunkLayer;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 pub(crate) trait ChunkGenerator {
     fn generate_chunk_from_parent(
@@ -19,6 +19,7 @@ pub(crate) trait ChunkGenerator {
         manager_guid_bytes: [u8; 16],
         child_layer_guid_bytes: [u8; 16],
         child_chunk_bounds: Bounds,
-        /* mut */ child_tiles: IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>>,
+        /* mut */
+        child_tiles: IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>>,
     ) -> IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>>;
 }

@@ -1,5 +1,6 @@
 use crate::chunk::Chunk;
 use crate::chunk_storage::chunk_storage_message_impl::ChunkStorageMessage;
+use hiivelabs_rand_utils_lib::prelude::IDim;
 use hiivelabs_storage_lib::prelude::{SqliteStorageContainer, StorageContainer, UniqueId};
 use log;
 use std::collections::HashSet;
@@ -8,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use uuid::Uuid;
-use hiivelabs_rand_utils_lib::prelude::IDim;
 
 pub(crate) struct ChunkStorageThreadHandler {
     owning_manager_guid: Uuid,

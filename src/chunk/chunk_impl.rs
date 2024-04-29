@@ -1,7 +1,7 @@
 use crate::bounds::Bounds;
 use bitcode::{Decode, Encode};
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 use uuid::Uuid;
-use hiivelabs_rand_utils_lib::prelude::{TIndex, UDim, IDim};
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct Chunk {

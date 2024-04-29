@@ -1,12 +1,12 @@
 use crate::bounds::Bounds;
 use crate::chunk::Chunk;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 use miniz_oxide::deflate::compress_to_vec;
 use miniz_oxide::inflate::decompress_to_vec;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use std::time::Instant;
 use uuid::Uuid;
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 
 use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 
@@ -80,7 +80,9 @@ fn build_complete_chunk(width: UDim, height: UDim, padding: UDim, is_random: boo
         if is_random {
             generate_random_vector(size as usize)
         } else {
-            (0..(chunk.chunk_width * chunk.chunk_height)).map(|c| c as TIndex).collect()
+            (0..(chunk.chunk_width * chunk.chunk_height))
+                .map(|c| c as TIndex)
+                .collect()
         }
     };
     let mut ix = 0;

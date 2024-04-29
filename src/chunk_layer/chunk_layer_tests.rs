@@ -1,9 +1,9 @@
 use crate::chunk_layer::ChunkLayer;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
 use std::fs;
 use std::str::FromStr;
 use uuid::Uuid;
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 #[test]
 fn test_is_chunk_border_coord() {

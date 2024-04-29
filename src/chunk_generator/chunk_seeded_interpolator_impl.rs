@@ -2,10 +2,10 @@ use crate::bounds::Bounds;
 use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_layer::ChunkLayer;
 use crate::chunk_seed_utils::chunk_seed_utils_impl::create_seed_from_guid_bytes_x_y;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
 use std::hash::{BuildHasherDefault, Hasher};
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 pub(crate) struct ChunkSeededInterpolator;
 
@@ -22,11 +22,8 @@ impl ChunkGenerator for ChunkSeededInterpolator {
         let w = 2 + this_layer_x1 - this_layer_x0;
         let h = 2 + this_layer_y1 - this_layer_y0;
         let s = (w * h) as usize;
-        let mut child_tiles: IndexMap<
-            (IDim, IDim),
-            Option<TIndex>,
-            BuildHasherDefault<FxHasher>,
-        > = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
+        let mut child_tiles: IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>> =
+            IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
 
         // build the child tile map
         for this_layer_y in this_layer_y0..this_layer_y1 {

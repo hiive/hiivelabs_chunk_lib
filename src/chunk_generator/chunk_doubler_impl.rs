@@ -1,10 +1,10 @@
 use crate::bounds::Bounds;
 use crate::chunk_generator::chunk_generator_trait::ChunkGenerator;
 use crate::chunk_layer::ChunkLayer;
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 use indexmap::IndexMap;
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex};
 
 pub(crate) struct ChunkDoubler;
 
@@ -21,11 +21,8 @@ impl ChunkGenerator for ChunkDoubler {
         let w = 2 + this_layer_x1 - this_layer_x0;
         let h = 2 + this_layer_y1 - this_layer_y0;
         let s = (w * h) as usize;
-        let mut child_tiles: IndexMap<
-            (IDim, IDim),
-            Option<TIndex>,
-            BuildHasherDefault<FxHasher>,
-        > = IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
+        let mut child_tiles: IndexMap<(IDim, IDim), Option<TIndex>, BuildHasherDefault<FxHasher>> =
+            IndexMap::with_capacity_and_hasher(s, BuildHasherDefault::default());
 
         // build the child tile map
         for this_layer_y in this_layer_y0..this_layer_y1 {

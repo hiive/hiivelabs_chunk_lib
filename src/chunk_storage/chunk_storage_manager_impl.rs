@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+use hiivelabs_rand_utils_lib::prelude::IDim;
 use hiivelabs_storage_lib::prelude::UniqueId;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
-use hiivelabs_rand_utils_lib::prelude::IDim;
 
 use crate::chunk::Chunk;
 use crate::chunk_seed_utils::chunk_seed_utils_impl::{
@@ -174,8 +174,10 @@ impl ChunkStorageManager {
 
     fn load_chunk_from_storage(&self, cx: IDim, cy: IDim) -> Option<Chunk> {
         // log::info!("ChunkStorageManager:get([{chunk_cache_key:?}]) : NOT FOUND in mem-cache");
-        let chunk_guid_bytes = create_seed_from_guid_x_y(self.owning_layer_guid, cx as isize, cy as isize);
-        let chunk_unique_id = get_chunk_unique_id(&chunk_guid_bytes, cx as isize, cy as isize, true);
+        let chunk_guid_bytes =
+            create_seed_from_guid_x_y(self.owning_layer_guid, cx as isize, cy as isize);
+        let chunk_unique_id =
+            get_chunk_unique_id(&chunk_guid_bytes, cx as isize, cy as isize, true);
         let chunk_cache_key = (cx, cy);
         // short circuit - don't load chunk if we know it's not in the cache
         if !self.stored_chunk_ids.contains(&chunk_unique_id) {

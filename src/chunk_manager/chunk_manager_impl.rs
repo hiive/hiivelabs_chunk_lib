@@ -1,13 +1,12 @@
 use hiivelabs_storage_lib::prelude::UniqueId;
 
-
-use rustc_hash::{FxHashMap};
-#[cfg(feature = "multithreaded_chunk_generation")]
-use rustc_hash::{FxHasher};
-#[cfg(feature = "multithreaded_chunk_generation")]
-use log::log;
 #[cfg(feature = "multithreaded_chunk_generation")]
 use indexmap::{IndexMap, IndexSet};
+#[cfg(feature = "multithreaded_chunk_generation")]
+use log::log;
+use rustc_hash::FxHashMap;
+#[cfg(feature = "multithreaded_chunk_generation")]
+use rustc_hash::FxHasher;
 
 use std::hash::BuildHasherDefault;
 use std::sync::{Arc, RwLock};
@@ -23,6 +22,7 @@ use crate::tilemap_datasource::TileMapDataSource;
 use hiivelabs_rand_utils_lib::prelude::{
     create_worker_pool, shutdown_worker_pool, submit_message_to_worker_pool, WorkerPoolMessage,
 };
+use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 #[cfg(feature = "multithreaded_chunk_generation")]
 use std::any::Any;
 #[cfg(feature = "multithreaded_chunk_generation")]
@@ -31,7 +31,6 @@ use std::sync::mpsc::{self, Receiver, RecvError};
 use std::thread;
 #[cfg(feature = "multithreaded_chunk_generation")]
 use std::thread::JoinHandle;
-use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 
 /// Manages a chunked 2D tilemap that automatically procedurally generates
 /// additional procedural detail.
@@ -205,7 +204,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                         if let Ok(index_map) = result.downcast::<IndexMap<
                             (isize, isize),
                             Option<TIndex>,
-                            BuildHasherDefault<FxHasher>
+                            BuildHasherDefault<FxHasher>,
                         >>() {
                             // `index_map` is now a `Box<IndexMap<(isize, isize), Option<TIndex>, BuildHasherDefault<FxHasher>>>`
                             let layer_id = info.expect("No layer id!");
@@ -217,7 +216,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                                 let mut layer_lock_result = layer_arc.try_write();
                                 match layer_lock_result {
                                     Ok(mut layer_lock) => {
-                                        let mut layer = layer_lock.as_mut().expect("Can't get layer");
+                                        let mut layer =
+                                            layer_lock.as_mut().expect("Can't get layer");
                                         for ((tx, ty), t_opt) in index_map.drain(..) {
                                             match t_opt {
                                                 None => {
@@ -244,9 +244,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                                         }
                                     }
                                 }
-
                             }
-
                         }
                     }
                 }
@@ -299,7 +297,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                     match layer_lock_result {
                         Ok(layer_lock) => {
                             let layer = layer_lock.as_ref().expect("Can't get layer");
-                            return Ok(layer.tile_bounds.get_bound_coords(include_padding))
+                            return Ok(layer.tile_bounds.get_bound_coords(include_padding));
                         }
                         Err(err) => {
                             attempts += 1;
@@ -341,8 +339,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
             Some(layer_rc) => {
                 self.ensure_layer_chunks_are_complete(x, y, z);
                 // the preceding method borrows layers,
-                // so has to run before the rest of the method.
-                let mut attempts= 0;
+                // so has to apply_shader before the rest of the method.
+                let mut attempts = 0;
                 loop {
                     let layer_lock_result = layer_rc.try_write();
                     match layer_lock_result {
@@ -360,12 +358,8 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
                             }
 
                             match layer.get_at(x, y) {
-                                Some(ix) => {
-                                    return Ok(&self.owned_values[ix])
-                                }
-                                _ => {
-                                    return Err("(x, y) coordinates out of bounds")
-                                }
+                                Some(ix) => return Ok(&self.owned_values[ix]),
+                                _ => return Err("(x, y) coordinates out of bounds"),
                             }
                         }
                         Err(err) => {
@@ -727,8 +721,10 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // build the map of vec index to (x, y) for use when draining the source vector
         // let mut ix_map = HashMap::with_capacity(width * height);
         // let mut ix_map = HashMap::<usize, (isize, isize), nohash_hasher::BuildNoHashHasher<usize>>::with_capacity_and_hasher(width * height, nohash_hasher::BuildNoHashHasher::default());
-        let mut ix_map =
-            FxHashMap::with_capacity_and_hasher((width * height) as usize, BuildHasherDefault::default());
+        let mut ix_map = FxHashMap::with_capacity_and_hasher(
+            (width * height) as usize,
+            BuildHasherDefault::default(),
+        );
         for y in 0..height {
             for x in 0..width {
                 if let Some(ix) = source.get_index_of(x, y) {
