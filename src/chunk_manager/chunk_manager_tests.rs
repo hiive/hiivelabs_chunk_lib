@@ -261,6 +261,7 @@ fn test_unique_id() {
     let result = fs::remove_file("00000000-0000-0000-0000-222222222222.world");
     log::info!("File Cleanup Result: {result:?}");
 }
+
 #[test]
 fn test_can_get_from_non_zero_layer() {
     setup_test_logger();
@@ -313,8 +314,8 @@ fn test_can_get_from_non_zero_layer() {
             let v3 = cm.get_at(x, y, 3).unwrap();
             let (x0, y0) = (x / 8, y / 8);
             let v0 = cm.get_at(x0, y0, 0).unwrap();
-            let v3s = std::format!("{v3:02X}");
-            let v0s = std::format!("{v0:02X}");
+            let _v3s = std::format!("{v3:02X}");
+            let _v0s = std::format!("{v0:02X}");
             // if x >= cropped_x_min && y >= cropped_y_min && x < cropped_x_max && y < cropped_y_max {
             //     assert_eq!(v3s, v0s, "({x} {y}, 3):[{v3s}] -> ({x0}, {y0}, 0):[{v0s}]");
             // }
