@@ -4,7 +4,7 @@ use hiivelabs_storage_lib::prelude::UniqueId;
 use indexmap::{IndexMap, IndexSet};
 #[cfg(feature = "multithreaded_chunk_generation")]
 use log::log;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 #[cfg(feature = "multithreaded_chunk_generation")]
 use rustc_hash::FxHasher;
 
@@ -723,7 +723,7 @@ impl<T: std::fmt::Debug> ChunkManager<T> {
         // let mut ix_map = HashMap::<usize, (isize, isize), nohash_hasher::BuildNoHashHasher<usize>>::with_capacity_and_hasher(width * height, nohash_hasher::BuildNoHashHasher::default());
         let mut ix_map = FxHashMap::with_capacity_and_hasher(
             (width * height) as usize,
-            BuildHasherDefault::default(),
+            FxBuildHasher::default(),
         );
         for y in 0..height {
             for x in 0..width {
