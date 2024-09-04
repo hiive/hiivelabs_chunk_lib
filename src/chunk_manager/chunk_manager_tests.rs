@@ -110,7 +110,7 @@ impl TestMap {
     fn generate_random_vector(length: UDim) -> Vec<HexU8> {
         let seed = [42; 32];
         let mut rng = StdRng::from_seed(seed);
-        (0..length).map(|_| HexU8(rng.gen())).collect()
+        (0..length).map(|_| HexU8(rng.random())).collect()
     }
 }
 
