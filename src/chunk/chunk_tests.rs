@@ -4,8 +4,9 @@ use hiivelabs_rand_utils_lib::prelude::{IDim, TIndex, UDim};
 use miniz_oxide::deflate::compress_to_vec;
 use miniz_oxide::inflate::decompress_to_vec;
 use rand::prelude::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, SeedableRng, TryRngCore};
 use std::time::Instant;
+use rand::distr::Uniform;
 use uuid::Uuid;
 
 use hiivelabs_rand_utils_lib::utils::test_utils::setup_test_logger;
@@ -61,11 +62,17 @@ fn is_not_complete() {
     assert!(!chunk.is_complete())
 }
 
+// fn generate_random_vector(length: usize) -> Vec<TIndex> {
+//     // let seed = [42; 32];
+//     // let mut rng = StdRng::from_seed(seed);
+//     let mut rng = rand::prelude::StdRng::from_rng(rand::thread_rng());
+//     (0..length).map(|_| rng.random()).collect()
+// }
+
 fn generate_random_vector(length: usize) -> Vec<TIndex> {
-    // let seed = [42; 32];
-    // let mut rng = StdRng::from_seed(seed);
-    let mut rng = StdRng::from_rng(rand::thread_rng()).unwrap();
-    (0..length).map(|_| rng.gen()).collect()
+    let mut rng = StdRng::from_rng(rand::thread_rng());
+    let uniform = Uniform::<TIndex>::new(TIndex::MIN, TIndex::MAX).expect("Can't create uniform");
+    (0..length).map(|_| rng.sample(&uniform)).collect()
 }
 
 fn build_complete_chunk(width: UDim, height: UDim, padding: UDim, is_random: bool) -> Chunk {
@@ -106,8 +113,8 @@ fn encode_decode_test() {
     log::info!("chunk length: {chunk_mem_size}");
 
     let start = Instant::now(); // Start timing
-                                // let first_start = start;
-                                // serialize
+    // let first_start = start;
+    // serialize
     let encoded: Vec<u8> = bitcode::encode(&chunk);
     let duration = start.elapsed(); // End timing
     log::info!("encoded length: {}, time: {duration:?}", encoded.len());
